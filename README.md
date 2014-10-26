@@ -1,7 +1,7 @@
 # stateful-check
 
 A Clojure library designed to help with testing stateful systems
-within [`test.check`][https://github.com/clojure/test.check/].
+within [`test.check`](https://github.com/clojure/test.check/).
 
 ## Example
 
