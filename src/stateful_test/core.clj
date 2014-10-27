@@ -18,7 +18,8 @@
       [[1 (gen/gen-pure nil)]
        [size (gen-do com-rose <- ((:generate-command spec) state)
                      :let [com (rose/root com-rose)
-                           command (get (:commands spec) com)]
+                           command (get (:commands spec) com)
+                           _ (assert command (str "Command " com " not found in :commands map"))]
                      rose <- (if-let [f (:model/args command)]
                                (f state)
                                (gen/return []))
@@ -49,7 +50,8 @@
     (reduce (fn [[state results] [result-var [com & args]]]
               (let [command (get (:commands spec) com)
                     args (replace results args)
-                    result (apply (:real/command command) args)
+                    result (do (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
+                               (apply (:real/command command) args))
                     passed-postcondition? (if-let [f (:real/postcondition command)]
                                             (f state args result)
                                             true)]
@@ -93,14 +95,15 @@
 
 
 (defn print-command-output [spec generated-commands with-states?]
-  (try (reduce (fn [[state results] [result-var [com & args]]]
+  (try (reduce (fn [[state results] [result-var [com & raw-args]]]
                  (let [command (get (:commands spec) com)
-                       args (replace results args)
-                       result (apply (:real/command command) args)
+                       args (replace results raw-args)
+                       result (do (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
+                                  (apply (:real/command command) args))
                        passed-postcondition? (if-let [f (:real/postcondition command)]
                                                (f state args result)
                                                true)]
-                   (println "  " (cons com args) "\t=>" result (if with-states? state ""))
+                   (println "  " result-var "=" (cons com raw-args) "\t;=>" result (if with-states? state ""))
                    (if passed-postcondition?
                      [(if-let [f (or (:real/next-state command)
                                      (:next-state command))]
