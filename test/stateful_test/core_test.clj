@@ -10,7 +10,7 @@
   nil)
 (defn pop-queue [queue]
   (let [val (peek @queue)]
-    (swap! queue (comp pop pop))
+    (swap! queue pop)
     val))
 
 (def queue-spec
