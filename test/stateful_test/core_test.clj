@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
-            [test-state-m.core :refer :all]))
+            [stateful-test.core :refer :all]))
 
 (defn new-queue [] (atom (clojure.lang.PersistentQueue/EMPTY)))
 (defn push-queue [queue val]
@@ -10,7 +10,7 @@
   nil)
 (defn pop-queue [queue]
   (let [val (peek @queue)]
-    (swap! queue pop)
+    (swap! queue (comp pop pop))
     val))
 
 (def queue-spec

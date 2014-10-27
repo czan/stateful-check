@@ -59,7 +59,7 @@
                      (f state args result)
                      state)
                    (assoc results result-var result)]
-                  (throw (Exception. "Failed")))))
+                  (throw (Exception. (str "Postcondition failed running " (cons com args)))))))
             nil generated-commands)
     (finally
       (if-let [f (:cleanup spec)]
