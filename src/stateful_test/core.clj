@@ -3,7 +3,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]
             [clojure.test.check.properties :refer [for-all]]
-            [test-state-m.gen :refer [gdo gen-do]]))
+            [stateful-test.gen :refer [gdo gen-do]]))
 
 (defrecord Var [num])
 (defmethod print-method Var
