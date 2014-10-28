@@ -165,10 +165,11 @@
   {:model/args set-and-item
    :next-state (fn [state [set item] _]
                  (alist-update state set action item))
-   :real/postcondition (fn [state [set item] result]
-                         (= result
-                            (not= (alist-get state set)
-                                  (action (alist-get state set) item))))})
+   ;; :real/postcondition (fn [state [set item] result]
+   ;;                       (= result
+   ;;                          (not= (alist-get state set)
+   ;;                                (action (alist-get state set) item))))
+   })
 
 (def add-set-command
   (merge (set-update-op conj)
@@ -176,7 +177,8 @@
 
 (def remove-set-command
   (merge (set-update-op disj)
-         {:real/command #(.remove %1 %2)}))
+         {:real/command #(do (.remove %1 10)
+                             (.remove %1 %2))}))
 
 (def contains?-set-command
   {:model/args set-and-item
@@ -228,24 +230,34 @@
          {:real/command #(.retainAll %1 %2)}))
 
 
-(def set-spec (let [command-map {:new new-set-command 
-                                 :add add-set-command 
-                                 :remove remove-set-command 
-                                 :contains? contains?-set-command
-                                 :clear clear-set-command
-                                 :empty? empty?-set-command
-                                 :add-all add-all-set-command
-                                 :remove-all remove-all-set-command
-                                 :retain-all retain-all-set-command}]
-                {:commands command-map
-                 :generate-command (fn [state]
-                                     (gen/elements (if (nil? state)
-                                                     [:new]
-                                                     (keys command-map))))}))
-
-(defspec prop-set 100
-  (reality-matches-model? set-spec))
-
-;; (print-test-results set-spec (prop-set))
+(def small-set-spec (let [command-map {:new (merge new-set-command
+                                                   {:model/precondition (fn [state _] (nil? state))}) 
+                                       :add add-set-command 
+                                       :remove remove-set-command 
+                                       :contains? contains?-set-command}]
+                     {:commands command-map
+                      :generate-command (fn [state]
+                                          (gen/elements (if (nil? state)
+                                                          [:new]
+                                                          (keys command-map))))}))
 
 
+(def full-set-spec (let [command-map {:new new-set-command 
+                                      :add add-set-command 
+                                      :remove remove-set-command 
+                                      :contains? contains?-set-command
+                                      :clear clear-set-command
+                                      :empty? empty?-set-command
+                                      :add-all add-all-set-command
+                                      :remove-all remove-all-set-command
+                                      :retain-all retain-all-set-command}]
+                     {:commands command-map
+                      :generate-command (fn [state]
+                                          (gen/elements (if (nil? state)
+                                                          [:new]
+                                                          (keys command-map))))}))
+
+(defspec prop-set 1000
+  (reality-matches-model? small-set-spec))
+
+(print-test-results small-set-spec (prop-set))
