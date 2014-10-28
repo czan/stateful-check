@@ -165,11 +165,10 @@
   {:model/args set-and-item
    :next-state (fn [state [set item] _]
                  (alist-update state set action item))
-   ;; :real/postcondition (fn [state [set item] result]
-   ;;                       (= result
-   ;;                          (not= (alist-get state set)
-   ;;                                (action (alist-get state set) item))))
-   })
+   :real/postcondition (fn [state [set item] result]
+                         (= result
+                            (not= (alist-get state set)
+                                  (action (alist-get state set) item))))})
 
 (def add-set-command
   (merge (set-update-op conj)
@@ -177,8 +176,7 @@
 
 (def remove-set-command
   (merge (set-update-op disj)
-         {:real/command #(do (.remove %1 10)
-                             (.remove %1 %2))}))
+         {:real/command #(.remove %1 %2)}))
 
 (def contains?-set-command
   {:model/args set-and-item
