@@ -128,41 +128,124 @@
 
 
 
-(def set-spec {:commands {:new {:model/precondition (fn [[set _] _]
-                                                      (nil? set))
-                                :next-state (fn [_ _ set]
-                                              [set #{}])
-                                :real/command #(java.util.HashSet.)}
 
-                          :add {:model/args (fn [[set _]]
-                                              (gen/tuple (gen/return set) gen/int))
-                                :model/precondition (fn [[set _] _]
-                                                      (not (nil? set)))
-                                :next-state (fn [[set elements] [_ arg] _]
-                                              [set (conj elements arg)])
-                                :real/command #(.add %1 %2)}
 
-                          :remove {:model/args (fn [[set _]]
-                                                 (gen/tuple (gen/return set) gen/int))
-                                   :model/precondition (fn [[set _] _]
-                                                         (not (nil? set)))
-                                   :next-state (fn [[set elements] [_ arg] _]
-                                                 [set (disj elements arg)])
-                                   :real/command #(.remove %1 %2)}
 
-                          :contains? {:model/args (fn [[set _]]
-                                                    (gen/tuple (gen/return set) gen/int))
-                                      :model/precondition (fn [[set _] _]
-                                                            (not (nil? set)))
-                                      :real/command #(.contains %1 %2)
-                                      :real/postcondition (fn [[set elements] [_ arg] result]
-                                                            (= result
-                                                               (contains? elements arg)))}}
-               :generate-command (fn [[set _]]
-                                   (gen/elements (if (nil? set)
-                                                   [:new]
-                                                   [:add :contains? :remove])))})
 
-(defspec prop-set
+
+
+
+
+
+(defn alist-get [alist key]
+  (first (some (fn [[k v]]
+                 (if (identical? k key)
+                   [v]))
+               alist)))
+
+(defn alist-update [alist key f & args]
+  (mapv (fn [[k v]]
+          (if (identical? k key)
+            (do
+              [k (apply f v args)])
+            [k v]))
+        alist))
+
+(def new-set-command
+  {:next-state (fn [state _ result]
+                 (if state
+                   (conj state [result #{}])
+                   [[result #{}]]))
+   :real/command #(java.util.HashSet. [])})
+
+(defn set-and-item [state]
+  (gen/tuple (gen/elements (map first state))
+             gen/int))
+(defn set-update-op [action]
+  {:model/args set-and-item
+   :next-state (fn [state [set item] _]
+                 (alist-update state set action item))
+   :real/postcondition (fn [state [set item] result]
+                         (= result
+                            (not= (alist-get state set)
+                                  (action (alist-get state set) item))))})
+
+(def add-set-command
+  (merge (set-update-op conj)
+         {:real/command #(.add %1 %2)}))
+
+(def remove-set-command
+  (merge (set-update-op disj)
+         {:real/command #(.remove %1 %2)}))
+
+(def contains?-set-command
+  {:model/args set-and-item
+   :real/command #(.contains %1 %2)
+   :real/postcondition (fn [state [set item] result]
+                         (= result (contains? (alist-get state set) item)))})
+
+
+
+(def clear-set-command
+  {:model/args (fn [state]
+                 (gen/tuple (gen/elements (map first state))))
+   :next-state (fn [state [set] _]
+                 (alist-update state set (constantly #{})))
+   :real/command #(.clear %1)})
+
+(def empty?-set-command
+  {:model/args (fn [state]
+                 (gen/tuple (gen/elements (map first state))))
+   :real/command #(.isEmpty %1)
+   :real/postcondition (fn [state [set] result]
+                         (= result (empty? (alist-get state set))))})
+
+
+
+(defn binary-set-command [combiner]
+  {:model/args (fn [state]
+                 (gen/tuple (gen/elements (map first state))
+                            (gen/elements (map first state))))
+   :next-state (fn [state [set1 set2] _]
+                 (alist-update state set1
+                               combiner (alist-get state set2)))
+   :real/postcondition (fn [state [set1 set2] result]
+                         (= result
+                            (not= (combiner (alist-get state set1)
+                                            (alist-get state set2))
+                                  (alist-get state set1))))})
+
+(def add-all-set-command
+  (merge (binary-set-command clojure.set/union)
+         {:real/command #(.addAll %1 %2)}))
+
+(def remove-all-set-command
+  (merge (binary-set-command clojure.set/difference)
+         {:real/command #(.removeAll %1 %2)}))
+
+(def retain-all-set-command
+  (merge (binary-set-command clojure.set/intersection)
+         {:real/command #(.retainAll %1 %2)}))
+
+
+(def set-spec (let [command-map {:new new-set-command 
+                                 :add add-set-command 
+                                 :remove remove-set-command 
+                                 :contains? contains?-set-command
+                                 :clear clear-set-command
+                                 :empty? empty?-set-command
+                                 :add-all add-all-set-command
+                                 :remove-all remove-all-set-command
+                                 :retain-all retain-all-set-command}]
+                {:commands command-map
+                 :generate-command (fn [state]
+                                     (gen/elements (if (nil? state)
+                                                     [:new]
+                                                     (keys command-map))))}))
+
+(defspec prop-set 100
   (reality-matches-model? set-spec))
+
+;; (print-test-results set-spec (prop-set))
+
 
