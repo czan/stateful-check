@@ -47,26 +47,25 @@
 
 (defn run-commands [spec generated-commands]
   (try
-    (reduce (fn [[state results] [result-var [com & args]]]
-              (let [command (get (:commands spec) com)
-                    args (replace results args)
-                    result (do (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
-                               (apply (:real/command command) args))
-                    passed-postcondition? (if-let [f (:real/postcondition command)]
-                                            (f state args result)
-                                            true)]
-                (if passed-postcondition?
-                  [(if-let [f (or (:real/next-state command)
-                                   (:next-state command))]
-                     (f state args result)
-                     state)
-                   (assoc results result-var result)]
-                  (throw (Exception. (str "Postcondition failed running " (cons com args)))))))
-            nil generated-commands)
+    (boolean (reduce (fn [[state results] [result-var [com & args]]]
+                       (let [command (get (:commands spec) com)
+                             args (replace results args)
+                             result (do (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
+                                        (apply (:real/command command) args))
+                             passed-postcondition? (if-let [f (:real/postcondition command)]
+                                                     (f state args result)
+                                                     true)]
+                         (if passed-postcondition?
+                           [(if-let [f (or (:real/next-state command)
+                                           (:next-state command))]
+                              (f state args result)
+                              state)
+                            (assoc results result-var result)]
+                           (reduced nil))))
+                     [nil {}] generated-commands))
     (finally
       (if-let [f (:cleanup spec)]
-        (f))))
-  true)
+        (f)))))
 
 (defn valid-commands? [spec command-list]
   (first (reduce (fn [[valid? state results] [result-var [com & args]]]
@@ -77,8 +76,8 @@
                                                              (contains? results arg)))
                                                        args)
                                                (if-let [f (:model/precondition command)]
-                                                     (f state args)
-                                                     true))]
+                                                 (f state args)
+                                                 true))]
                      (if precondition-passed?
                        (if-let [f (or (:model/next-state command)
                                       (:next-state command))]
@@ -96,21 +95,24 @@
 
 (defn print-command-output [spec generated-commands with-states?]
   (try (reduce (fn [[state results] [result-var [com & raw-args]]]
-                 (let [command (get (:commands spec) com)
-                       args (replace results raw-args)
-                       result (do (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
-                                  (apply (:real/command command) args))
-                       passed-postcondition? (if-let [f (:real/postcondition command)]
-                                               (f state args result)
-                                               true)]
-                   (println "  " result-var "=" (cons com raw-args) "\t;=>" result (if with-states? state ""))
-                   (if passed-postcondition?
-                     [(if-let [f (or (:real/next-state command)
-                                     (:next-state command))]
-                        (f state args result)
-                        state)
-                      (assoc results result-var result)]
-                     (reduced nil))))
+                 (try (let [command (get (:commands spec) com)
+                            args (replace results raw-args)
+                            result (do (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
+                                       (apply (:real/command command) args))
+                            passed-postcondition? (if-let [f (:real/postcondition command)]
+                                                    (f state args result)
+                                                    true)]
+                        (println "  " result-var "=" (cons com raw-args) "\t;=>" result (if with-states? state ""))
+                        (if passed-postcondition?
+                          [(if-let [f (or (:real/next-state command)
+                                          (:next-state command))]
+                             (f state args result)
+                             state)
+                           (assoc results result-var result)]
+                          (reduced (println "   !! Postcondition failed !!"))))
+                      (catch Exception e
+                        (reduced (do (println "  " result-var "=" (cons com raw-args) "\t;=>" e (if with-states? state ""))
+                                     (println "  !! Exception thrown !!"))))))
                nil generated-commands)
        (finally
          (if-let [f (:cleanup spec)]
