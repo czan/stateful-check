@@ -14,8 +14,7 @@ an atom:
       nil)
     (defn pop-queue [queue]
       (let [val (peek @queue)]
-        (swap! queue pop)
-        val))
+        (swap! queue pop)))
 
 Our specification could look like this:
 
@@ -57,13 +56,47 @@ allocation within the test.
 Now we can run our tests:
 
     (require '[clojure.test.check :refer [quick-check]])
-    (require '[stateful-check.core :refer [reality-matches-model?]])
+    (require '[stateful-check.core :refer [reality-matches-model? print-test-results]])
     (quick-check 100 (reality-matches-model? queue-spec))
+    ;=> {:result false, :seed 1417008254272, :failing-size 5, :num-tests 6, :fail [[[#<0> (:create)] [#<1> (:push #<0> 3)] [#<2> (:pop #<0>)]]], :shrunk {:total-nodes-visited 2, :depth 0, :result false, :smallest [[[#<0> (:create)] [#<1> (:push #<0> 3)] [#<2> (:pop #<0>)]]]}}
 
-To see more useful test results you can use `print-test-results`:
+Whoops! It looks like we've got a bug! Let's have a look at the failing case:
 
-    (require '[stateful-check.core :refer [print-test-results]])
     (print-test-results queue-spec (quick-check 100 (reality-matches-model? queue-spec)))
+
+This should give us some output like this:
+
+    Failing test case:
+       #<0> = (:create) 	;=> #<Atom@d3a4ac1: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+       #<1> = (:push #<0> 1) 	;=> nil
+       #<2> = (:pop #<0>) 	;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
+       !! Postcondition failed !!
+    Shrunk:
+       #<0> = (:create) 	;=> #<Atom@6e01cbaf: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+       #<1> = (:push #<0> 1) 	;=> nil
+       #<2> = (:pop #<0>) 	;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
+       !! Postcondition failed !!
+
+So, we have an error when we create a queue, then push a value into
+it, then pop the value back out. That could be an issue with
+`push-queue` or with `pop-queue`.
+
+Looking at the return value of the :pop instruction, though, we can
+see that it's returning the wrong thing! It should be retuning the
+popped value, but it's returning the entire queue. We forgot to put
+`val` in there. That's easy to fix:
+
+    (defn pop-queue [queue]
+      (let [val (peek @queue)]
+        (swap! queue pop)
+        val))
+
+There we go now. How about trying the test again now:
+
+    (quick-check 100 (reality-matches-model? queue-spec))
+    ;=> {:result true, :num-tests 100, :seed 1417008522208}
+
+Awesome! We're passing now. Hooray!
 
 ## Usage
 

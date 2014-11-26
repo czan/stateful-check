@@ -255,7 +255,7 @@
                                                           [:new]
                                                           (keys command-map))))}))
 
-(defspec prop-set 1000
+(defspec prop-set
   (reality-matches-model? full-set-spec))
 
 ;; (prop-set)
