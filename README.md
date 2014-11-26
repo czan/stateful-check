@@ -81,7 +81,7 @@ So, we have an error when we create a queue, then push a value into
 it, then pop the value back out. That could be an issue with
 `push-queue` or with `pop-queue`.
 
-Looking at the return value of the :pop instruction, though, we can
+Looking at the return value of the `:pop` instruction, though, we can
 see that it's returning the wrong thing! It should be retuning the
 popped value, but it's returning the entire queue. We forgot to put
 `val` in there. That's easy to fix:
@@ -96,7 +96,7 @@ There we go now. How about trying the test again now:
     (quick-check 100 (reality-matches-model? queue-spec))
     ;=> {:result true, :num-tests 100, :seed 1417008522208}
 
-Awesome! We're passing now. Hooray!
+We're passing now. Hooray!
 
 ## Usage
 
