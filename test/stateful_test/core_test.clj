@@ -1,5 +1,6 @@
 (ns stateful-test.core-test
   (:require [clojure.test :refer :all]
+            [clojure.test.check :refer [quick-check]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [stateful-test.core :refer :all]))
@@ -83,7 +84,8 @@
                                       (nil? state) [:empty]
                                       (empty? state) [:add]
                                       :else [:add :remove :contains? :empty? :empty])))
-   :cleanup #(reset! global-state #{})})
+   :cleanup (fn [state] (reset! global-state #{}))})
+
 (defspec prop-atomic-set
   (reality-matches-model? atomic-set-spec))
 
@@ -138,16 +140,15 @@
 
 
 (defn alist-get [alist key]
-  (first (some (fn [[k v]]
-                 (if (identical? k key)
-                   [v]))
-               alist)))
+  (some (fn [[k v]]
+          (if (identical? k key)
+            v))
+        alist))
 
 (defn alist-update [alist key f & args]
   (mapv (fn [[k v]]
           (if (identical? k key)
-            (do
-              [k (apply f v args)])
+            [k (apply f v args)]
             [k v]))
         alist))
 
@@ -165,7 +166,7 @@
   {:model/args set-and-item
    :next-state (fn [state [set item] _]
                  (alist-update state set action item))
-   :real/postcondition (fn [state [set item] result]
+    :real/postcondition (fn [state [set item] result]
                          (= result
                             (not= (alist-get state set)
                                   (action (alist-get state set) item))))})
@@ -239,7 +240,6 @@
                                                           [:new]
                                                           (keys command-map))))}))
 
-
 (def full-set-spec (let [command-map {:new new-set-command 
                                       :add add-set-command 
                                       :remove remove-set-command 
@@ -256,6 +256,14 @@
                                                           (keys command-map))))}))
 
 (defspec prop-set 1000
-  (reality-matches-model? small-set-spec))
+  (reality-matches-model? full-set-spec))
 
-(print-test-results small-set-spec (prop-set))
+;; (prop-set)
+;; (print-test-results full-set-spec (prop-set))
+
+
+
+;; (:shrunk (quick-check 1000 (reality-matches-model? full-set-spec)
+;;                       :seed 100000))
+
+;; (:shrunk (quick-check 1000 (reality-matches-model? full-set-spec)))
