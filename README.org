@@ -146,14 +146,14 @@ Whoops! It failed! We must have a bug somewhere. Let's see if we can see that ou
 #+BEGIN_SRC clojure :results output
   (print-test-results queue-spec (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645))
   ;; Failing test case:
-  ;;    #<0> = (:new)     ;=> #<Atom@194d35d: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+  ;;    #<0> = (:new)     ;=> #<Atom@6dce3a19: #<PersistentQueue clojure.lang.PersistentQueue@1>>
   ;;    #<1> = (:push #<0> 4)     ;=> nil
   ;;    #<2> = (:push #<0> 2)     ;=> nil
   ;;    #<3> = (:pop #<0>)        ;=> #<PersistentQueue clojure.lang.PersistentQueue@21>
   ;;    !! Postcondition failed !!
   ;; Shrunk:
-  ;;    #<0> = (:new)     ;=> #<Atom@51c07f7a: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-  ;;    #<1> = (:push #<0> 4)     ;=> nil
+  ;;    #<0> = (:new)     ;=> #<Atom@7e4877a0: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+  ;;    #<1> = (:push #<0> 0)     ;=> nil
   ;;    #<3> = (:pop #<0>)        ;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
   ;;    !! Postcondition failed !!
 #+END_SRC

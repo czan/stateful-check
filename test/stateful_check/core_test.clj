@@ -257,13 +257,3 @@
 
 (defspec prop-set
   (reality-matches-model? full-set-spec))
-
-;; (prop-set)
-;; (print-test-results full-set-spec (prop-set))
-
-
-
-;; (:shrunk (quick-check 1000 (reality-matches-model? full-set-spec)
-;;                       :seed 100000))
-
-;; (:shrunk (quick-check 1000 (reality-matches-model? full-set-spec)))

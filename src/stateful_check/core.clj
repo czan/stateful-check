@@ -58,10 +58,11 @@
                            roses))))))
 
 (defn sublist-roses [roses]
-  (let [num (count roses)]
-    (->> (iterate inc 2)
-         (take-while #(<= % num))
-         (mapcat #(remove-chunks % roses)))))
+  (concat (let [num (count roses)]
+            (->> (iterate inc 2)
+                 (take-while #(<= % num))
+                 (mapcat #(remove-chunks % roses))))
+          (rose/permutations (vec roses))))
 
 (defn shrink-commands-roses [roses]
   (if (seq roses)
@@ -72,13 +73,7 @@
 (defn generate-commands [spec state]
   (gen/gen-bind (generate-commands* spec 0 state)
                 (fn [roses]
-                  (gen/gen-pure (shrink-commands-roses roses)
-                                ;;(rose/shrink vector roses)
-                   ))))
-
-;; (gen/sample (generate-commands foresight-generative.core/foresight-spec nil) 1)
-;; blah
-
+                  (gen/gen-pure (shrink-commands-roses roses)))))
 
 (defn run-commands
   ([spec generated-commands]
@@ -153,16 +148,12 @@
                                     (generate-commands spec nil))]
     (run-commands spec commands)))
 
-
-
-(defn print-test-results
-  ([spec results] (print-test-results spec results false))
-  ([spec results with-states?]
-     (when-not (true? (:result results))
-       (println "\nFailing test case:")
-       (run-commands spec (-> results :fail first) println)
-       (println "Shrunk:")
-       (run-commands spec (-> results :shrunk :smallest first) println))))
+(defn print-test-results [spec results]
+  (when-not (true? (:result results))
+    (println "\nFailing test case:")
+    (run-commands spec (-> results :fail first) println)
+    (println "Shrunk:")
+    (run-commands spec (-> results :shrunk :smallest first) println)))
 
 
 
