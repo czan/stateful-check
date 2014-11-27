@@ -3,6 +3,13 @@
 A [[http://clojure.org][Clojure]] library designed to help with testing stateful systems with
 [[https://github.com/clojure/test.check/][test.check]].
 
+#+BEGIN_HTML
+<a href="http://clojars.org/org.clojars.czan/stateful-check">
+  <img src="http://clojars.org/org.clojars.czan/stateful-check/latest-version.svg"
+       alt="Clojars Project">
+</a>
+#+END_HTML
+
 * Example
 
 As an example, let's test a mutable queue (a ~PersistentQueue~ in an
