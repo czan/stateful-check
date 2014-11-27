@@ -1,9 +1,9 @@
-(ns stateful-test.core
+(ns stateful-check.core
   (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]
             [clojure.test.check.properties :refer [for-all]]
-            [stateful-test.gen :refer [gdo gen-do]]))
+            [stateful-check.gen :refer [gdo gen-do]]))
 
 (defrecord Var [num])
 (defmethod print-method Var

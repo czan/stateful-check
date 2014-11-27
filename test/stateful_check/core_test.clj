@@ -1,9 +1,9 @@
-(ns stateful-test.core-test
+(ns stateful-check.core-test
   (:require [clojure.test :refer :all]
             [clojure.test.check :refer [quick-check]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
-            [stateful-test.core :refer :all]))
+            [stateful-check.core :refer :all]))
 
 (defn new-queue [] (atom (clojure.lang.PersistentQueue/EMPTY)))
 (defn push-queue [queue val]
