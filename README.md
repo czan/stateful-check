@@ -98,12 +98,13 @@ There we go now. How about trying the test again now:
 
 We're passing now. Hooray!
 
-## Usage
+## Specification format
 
 Using `stateful-check` is a matter of defining a state machine. Each
-state machine consists of a map of commands (`:commands`), a function
-to generate a command given a state (`:generate-command`), and a
-function to clean up after a run (`:cleanup`).
+state machine consists of a map of commands (`:commands`) and a
+function to generate a command given a state (`:generate-command`).
+
+### `:commands`
 
 An entry in `:commands` is itself a map specifying the command to be
 run. It has the following shape:
@@ -136,6 +137,24 @@ the state.
 The `:next-state` function can be used to specify both
 `:real/next-state` and `:model/next-state` in situations where the
 difference between model results and real results is irrelevant.
+
+### `:generate-command`
+
+The `:generate-command` function must be a function from the abstract
+state to a generator for a valid command.
+
+### `:setup`/`:cleanup`
+
+You can also provide a `:setup` and/or a `:cleanup` function.
+
+The `:setup` function must be a function of zero arguments, and its
+return value is used as the initial `state` for command execution (not
+generation). It will be called prior to a run of generated commands.
+
+The `:cleanup` function must be a function of one argument: the real
+state. Its return value is ignored. It will be called after a run of
+generated commands.
+
 
 ## License
 
