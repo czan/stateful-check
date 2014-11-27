@@ -45,10 +45,26 @@ abstract semantics:
      :real/command #'new-queue})
 #+END_SRC
 
-This specification denotes that the new queue starts off empty
-(~:elements~ is empty), and tracks the newly-created queue in the
-~:queue~ key of ~state~ (so we can perform further operations on it
-later).
+This specification contains two elements:
+
+- ~:real/command~ is a function which will be called when running the
+  test. It performs an action on the real state, and is the thing the
+  specification is modelling.
+
+- ~:next-state~ denotes the effect that running this command will have
+  on the abstract state. In this case running the ~new-queue~ function
+  will initialise the abstract state. ~:element~ is set to the empty
+  vector because our queue starts off empty. ~:queue~ is set to the
+  result of calling the ~:real/command~ function to store it for later
+  operations.
+
+In this instance the ~:next-state~ function is called when performing
+both the abstract and the real evaluation. This means that ~:result~
+could be an abstract value, and thus cannot be operated on directly in
+~:next-state~. When an abstract value is used as an argument to a
+later command, however, it will be replaced by its corresponding
+concrete value (as can be seen below, where ~:queue~ is used as an
+argument to ~push-queue~ and ~pop-queue~).
 
 *** ~push-queue~
 
@@ -193,7 +209,65 @@ Success!
 
 * Specifications
 
-TODO: talk more about specifications here
+** Model specifications
+
+A model specification is a map with two required keys:
+
+- ~:commands~ is an array of command specifications (see below), which
+  are the operations which ~stateful-check~ knows how to perform.
+
+- ~:generate-commands~ is a function from an abstract state to a
+  generator. In the interests of efficiency this function should
+  attempt to create a generator which will only produce valid
+  commands. A generated command is a keyword referencing a key in the
+  ~:commands~ map.
+
+** Command specifications
+
+A command specification is a map with one required key:
+
+- ~:real/command~ is a function to perform an operation on the real
+  system.
+
+There are six optional keys:
+
+- ~:model/args~ is a function from state to a generator which will
+  generate a vector of arguments.
+
+- ~:model/precondition~ is a function from the state and the generated
+  arguments to a value indicating whether this command is valid to run
+  at this stage. If the return value of this function is falsey then
+  this command is considered invalid and this sequence will not be
+  run.
+
+- ~:model/next-state~ is a function from the state, the arguments and
+  an abstract result placeholder to the next state for the system.
+
+- ~:next-state~ is a shortcut for specifying ~:model/next-state~ and
+  ~:real/next-state~ to be the same function. Precedence is given to
+  the more specific functions if they are present.
+
+- ~:real/next-state~ is a function from the state, the arguments and a
+  concrete result to the next state for the system.
+
+- ~:real/postcondition~ is a function from the state, the arguments
+  and a concrete result to a value indicating whether this command
+  succeeded. If the return value of this function is falsey then this
+  command (and hence this sequence of commands) is considered to be
+  failed.
+
+If any of these functions throw an exception it will provoke a test
+failure.
+
+* Related work
+
+- [[https://github.com/clojure/test.check/][test.check]] (generative testing for Clojure)
+- [[http://www.quviq.com/index.html][QuviQ Quickcheck]] (commercial generative testing for Erlang)
+- [[http://proper.softlab.ntua.gr/index.html][PropEr]] (open source generative testing for Erlang)
+
+* Future work
+
+- race-condition debugging (parallel test cases)
 
 * License
 
