@@ -85,21 +85,21 @@
                                            [result exception] (try [(do (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
                                                                         (apply (:real/command command) args))
                                                                     nil]
-                                                                   (catch Exception ex
+                                                                   (catch Throwable ex
                                                                      [nil ex]))
                                            [passed? exception] (if exception
                                                                  [false exception]
                                                                  (if-let [f (:real/postcondition command)]
                                                                    (try
                                                                      [(f state args result)]
-                                                                     (catch Exception ex
+                                                                     (catch Throwable ex
                                                                        [false ex]))
                                                                    [true]))
                                            [state exception] (if-let [f (or (:real/next-state command)
                                                                             (:next-state command))]
                                                                (try
                                                                  [(f state args result) exception]
-                                                                 (catch Exception ex
+                                                                 (catch Throwable ex
                                                                    [state (or exception ex)]))
                                                                [state exception])]
                                        (println "  " result-var "=" (cons com raw-args) "\t;=>" result)
