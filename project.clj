@@ -1,6 +1,6 @@
-(defproject stateful-test "0.1.0-SNAPSHOT"
+(defproject org.clojars.czan/stateful-check "0.1.0-SNAPSHOT"
   :description "Stateful generative testing in clojure"
-  :url "http://example.com/FIXME"
+  :url "https://github.com/czan/stateful-check"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
