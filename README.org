@@ -138,33 +138,25 @@ Let's see what happens when we run this specification:
 
 #+BEGIN_SRC clojure :results result
   (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645)
+  ;; {:result false, :seed 1417059242645, :failing-size 5, :num-tests 6, :fail [[[#<0> (:new)] [#<1> (:push #<0> 4)] [#<2> (:push #<0> 2)] [#<3> (:pop #<0>)]]], :shrunk {:total-nodes-visited 5, :depth 1, :result false, :smallest [[[#<0> (:new)] [#<1> (:push #<0> 4)] [#<3> (:pop #<0>)]]]}}
 #+END_SRC
-
-#+RESULTS:
-: {:result false, :seed 1417059242645, :failing-size 5, :num-tests 6, :fail [[[#<0> (:new)] [#<1> (:push #<0> 4)] [#<2> (:push #<0> 2)] [#<3> (:pop #<0>)]]], :shrunk {:total-nodes-visited 5, :depth 1, :result false, :smallest [[[#<0> (:new)] [#<1> (:push #<0> 4)] [#<3> (:pop #<0>)]]]}}
 
 Whoops! It failed! We must have a bug somewhere. Let's see if we can see that output in a nicer form.
 
 #+BEGIN_SRC clojure :results output
   (print-test-results queue-spec (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645))
+  ;; Failing test case:
+  ;;    #<0> = (:new)     ;=> #<Atom@194d35d: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+  ;;    #<1> = (:push #<0> 4)     ;=> nil
+  ;;    #<2> = (:push #<0> 2)     ;=> nil
+  ;;    #<3> = (:pop #<0>)        ;=> #<PersistentQueue clojure.lang.PersistentQueue@21>
+  ;;    !! Postcondition failed !!
+  ;; Shrunk:
+  ;;    #<0> = (:new)     ;=> #<Atom@51c07f7a: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+  ;;    #<1> = (:push #<0> 4)     ;=> nil
+  ;;    #<3> = (:pop #<0>)        ;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
+  ;;    !! Postcondition failed !!
 #+END_SRC
-
-#+RESULTS:
-#+begin_example
-
-Failing test case:
-   #<0> = (:new) 	;=> #<Atom@194d35d: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-   #<1> = (:push #<0> 4) 	;=> nil
-   #<2> = (:push #<0> 2) 	;=> nil
-   #<3> = (:pop #<0>) 	;=> #<PersistentQueue clojure.lang.PersistentQueue@21>
-   !! Postcondition failed !!
-Shrunk:
-   #<0> = (:new) 	;=> #<Atom@51c07f7a: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-   #<1> = (:push #<0> 4) 	;=> nil
-   #<3> = (:pop #<0>) 	;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
-   !! Postcondition failed !!
-#+end_example
-
 
 Okay, we seem to have an error when we create a queue, then push a
 value into it, then pop the value back out. So it could be a problem
@@ -187,10 +179,8 @@ Now let's try running our tests again.
 
 #+BEGIN_SRC clojure :results result
   (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645)
+  ;; {:result true, :num-tests 100, :seed 1417059242645}
 #+END_SRC
-
-#+RESULTS:
-: {:result true, :num-tests 100, :seed 1417059242645}
 
 Success!
 
