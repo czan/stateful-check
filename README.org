@@ -10,7 +10,7 @@ atom). Our queue will have three operations: ~new~, ~push~ and
 ~pop~. Before we get started, though, let's import some things which
 we'll need later.
 
-#+BEGIN_SRC clojure
+#+BEGIN_SRC clojure :results silent :exports code
   (require '[clojure.test.check.generators :as gen]
            '[clojure.test.check :refer [quick-check]]
            '[stateful-check.core :refer [reality-matches-model? print-test-results]])
@@ -23,7 +23,7 @@ we'll need later.
 
 The implementation for the ~new-queue~ function is quite simple:
 
-#+BEGIN_SRC clojure
+#+BEGIN_SRC clojure :results silent :exports code
   (defn new-queue []
     (atom clojure.lang.PersistentQueue/EMPTY))
 #+END_SRC
@@ -31,7 +31,7 @@ The implementation for the ~new-queue~ function is quite simple:
 In order to use it with ~stateful-check~ we also need to model its
 abstract semantics:
 
-#+BEGIN_SRC clojure
+#+BEGIN_SRC clojure :results silent :exports code
   (def new-queue-specification
     {:next-state (fn [state _ result]
                    {:queue result, :elements []})
@@ -47,7 +47,7 @@ later).
 
 Similarly, ~push-queue~ is fairly simple to implement.
 
-#+BEGIN_SRC clojure
+#+BEGIN_SRC clojure :results silent :exports code
   (defn push-queue [queue val]
     (swap! queue conj val)
     nil)
@@ -55,7 +55,7 @@ Similarly, ~push-queue~ is fairly simple to implement.
 
 Then its abstract semantics:
 
-#+BEGIN_SRC clojure
+#+BEGIN_SRC clojure :results silent :exports code
   (def push-queue-specification
     {:model/args (fn [state]
                    (gen/tuple (gen/return (:queue state))
@@ -88,7 +88,7 @@ command to the end of the ~:elements~ vector in the ~state~ map.
 
 Lastly, ~pop-queue~:
 
-#+BEGIN_SRC clojure
+#+BEGIN_SRC clojure :results silent :exports code
   (defn pop-queue [queue]
     (let [val (peek @queue)]
       (swap! queue pop)))
@@ -119,7 +119,7 @@ Now we want to run our specification. In order to do this we first
 need to assemble each of our command specifications into a full model
 specification.
 
-#+BEGIN_SRC clojure
+#+BEGIN_SRC clojure :results silent :exports code
   (def queue-spec
     {:commands {:new new-queue-specification
                 :push push-queue-specification
@@ -136,28 +136,34 @@ abstract state to a generator which will generate a new command.
 
 Let's see what happens when we run this specification:
 
-#+BEGIN_SRC clojure
-  (quick-check 100 (reality-matches-model? queue-spec))
-  ;=> {:result false, :seed 1417055384762, :failing-size 6, :num-tests 7, :fail [[[#<0> (:new)] [#<1> (:push #<0> 5)] [#<2> (:pop #<0>)] [#<3> (:push #<0> 0)]]], :shrunk {:total-nodes-visited 4, :depth 1, :result false, :smallest [[[#<0> (:new)] [#<1> (:push #<0> 5)] [#<2> (:pop #<0>)]]]}}
+#+BEGIN_SRC clojure :results result
+  (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645)
 #+END_SRC
+
+#+RESULTS:
+: {:result false, :seed 1417059242645, :failing-size 5, :num-tests 6, :fail [[[#<0> (:new)] [#<1> (:push #<0> 4)] [#<2> (:push #<0> 2)] [#<3> (:pop #<0>)]]], :shrunk {:total-nodes-visited 5, :depth 1, :result false, :smallest [[[#<0> (:new)] [#<1> (:push #<0> 4)] [#<3> (:pop #<0>)]]]}}
 
 Whoops! It failed! We must have a bug somewhere. Let's see if we can see that output in a nicer form.
 
 #+BEGIN_SRC clojure :results output
-  (print-test-results queue-spec (quick-check 100 (reality-matches-model? queue-spec)))
+  (print-test-results queue-spec (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645))
 #+END_SRC
 
-#+RESULTS
-: Failing test case: 
-:    #<0> = (:new) 	;=> #<Atom@41103bce: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-:    #<1> = (:push #<0> 1) 	;=> nil
-:    #<2> = (:pop #<0>) 	;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
-:    !! Postcondition failed !!
-: Shrunk:
-:    #<0> = (:new) 	;=> #<Atom@10c672c1: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-:    #<1> = (:push #<0> 1) 	;=> nil
-:    #<2> = (:pop #<0>) 	;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
-:    !! Postcondition failed !!
+#+RESULTS:
+#+begin_example
+
+Failing test case:
+   #<0> = (:new) 	;=> #<Atom@194d35d: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+   #<1> = (:push #<0> 4) 	;=> nil
+   #<2> = (:push #<0> 2) 	;=> nil
+   #<3> = (:pop #<0>) 	;=> #<PersistentQueue clojure.lang.PersistentQueue@21>
+   !! Postcondition failed !!
+Shrunk:
+   #<0> = (:new) 	;=> #<Atom@51c07f7a: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+   #<1> = (:push #<0> 4) 	;=> nil
+   #<3> = (:pop #<0>) 	;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
+   !! Postcondition failed !!
+#+end_example
 
 
 Okay, we seem to have an error when we create a queue, then push a
@@ -170,7 +176,7 @@ value from the queue. We have a bug!
 
 So, let's fix our error.
 
-#+BEGIN_SRC clojure
+#+BEGIN_SRC clojure :results silent :exports code
   (defn pop-queue [queue]
     (let [val (peek @queue)]
       (swap! queue pop)
@@ -179,10 +185,12 @@ So, let's fix our error.
 
 Now let's try running our tests again.
 
-#+BEGIN_SRC clojure
-  (quick-check 100 (reality-matches-model? queue-spec))
-  ;=> {:result true, :num-tests 100, :seed 1417008522208}
+#+BEGIN_SRC clojure :results result
+  (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645)
 #+END_SRC
+
+#+RESULTS:
+: {:result true, :num-tests 100, :seed 1417059242645}
 
 Success!
 
