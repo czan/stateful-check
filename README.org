@@ -213,14 +213,13 @@ Success!
 
 A model specification is a map with two required keys:
 
-- ~:commands~ is an array of command specifications (see below), which
+- ~:commands~ is a map of command specifications (see below), which
   are the operations which ~stateful-check~ knows how to perform.
 
 - ~:generate-commands~ is a function from an abstract state to a
   generator. In the interests of efficiency this function should
   attempt to create a generator which will only produce valid
-  commands. A generated command is a keyword referencing a key in the
-  ~:commands~ map.
+  commands. A generated command is a key into the ~:commands~ map.
 
 There are two optional keys:
 
