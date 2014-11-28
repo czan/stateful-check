@@ -222,6 +222,18 @@ A model specification is a map with two required keys:
   commands. A generated command is a keyword referencing a key in the
   ~:commands~ map.
 
+There are two optional keys:
+
+- ~:setup~ is a function of zero arguments which is called prior to
+  any commands being run. It can return an initial state of the system
+  for a run (note that the abstract state for command generation
+  always starts as ~nil~). Any resources allocated in this function
+  are effectively unavailable to commands (as no abstract handle can
+  be given for argument generation).
+
+- ~:cleanup~ is a function of the state which can perform any cleanup
+  operations required. Its return value is ignored.
+
 ** Command specifications
 
 A command specification is a map with one required key:
@@ -258,6 +270,15 @@ There are six optional keys:
 
 If any of these functions throw an exception it will provoke a test
 failure.
+
+The ~model~ namespaced keys are given an abstract state object. Any
+results of commands will be opaque and abstract and the real state of
+the system cannot be queried.
+
+The ~real~ namespaced keys are given an actual, concrete state of the
+system. They are only called during the actual execution of the
+commands. Any results of commands will be the actual results of
+running those commands.
 
 * Related work
 
