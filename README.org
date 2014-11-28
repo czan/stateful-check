@@ -213,10 +213,11 @@ Success!
 
 A model specification is a map with two required keys:
 
-- ~:commands~ is a map of command specifications (see below), which
-  are the operations which ~stateful-check~ knows how to perform. The
-  keys to this map are opaque to ~stateful-check~, but are used in the
-  ~:generate-commands~ function (and must be printable).
+- ~:commands~ is a map with values which are command specifications
+  (see below). This map contains all the operations which
+  ~stateful-check~ knows how to perform. The keys to this map are
+  opaque to ~stateful-check~, but are used in the ~:generate-commands~
+  function (and must be printable).
 
 - ~:generate-commands~ is a function from an abstract state to a
   generator. In the interests of efficiency this function should
