@@ -11,7 +11,13 @@
   (get-real-value [this real-values]
     (get (get-real-value root-var real-values)
          key
-         not-found)))
+         not-found))
+
+  clojure.lang.ILookup
+  (valAt [this key]
+    (->LookupVar this key nil))
+  (valAt [this key not-found]
+    (->LookupVar this key not-found)))
 
 (defmethod print-method LookupVar
   [^LookupVar v, ^java.io.Writer writer]
@@ -19,8 +25,9 @@
   (print-method (.-root-var v) writer)
   (.write writer " ")
   (print-method (.-key v) writer)
-  (.write writer " ")
-  (print-method (.-not-found v) writer)
+  (when-not (nil? (.-not-found v))
+    (.write writer " ")
+    (print-method (.-not-found v) writer))
   (.write writer ")"))
 
 
