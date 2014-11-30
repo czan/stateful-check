@@ -1,14 +1,11 @@
 (ns stateful-check.core
-  (:require [clojure.test.check :refer [quick-check]]
-            [clojure.test.check.generators :as gen]
-            [clojure.test.check.rose-tree :as rose]
+  (:require [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :refer [for-all]]
-            [stateful-check.gen :refer [gdo gen-do]]))
-
-(defrecord Var [num])
-(defmethod print-method Var
-  [v ^java.io.Writer writer]
-  (.write writer (str "#<" (:num v) ">")))
+            [clojure.test.check :refer [quick-check]]
+            [clojure.test.check.rose-tree :as rose]
+            [clojure.walk :as walk]
+            [stateful-check.gen :refer [gdo gen-do]]
+            [stateful-check.symbolic-values :refer [SymbolicValue ->RootVar get-real-value]]))
 
 (defn generate-commands* [spec count state]
   "Returns a list of rose-trees *within* the monad of gen/gen-pure"
@@ -28,7 +25,7 @@
                                                   (f state args)
                                                   true)]
                      (if precondition-passed?
-                       (gen-do :let [result (->Var count)
+                       (gen-do :let [result (->RootVar count)
                                      next-state (if-let [f (or (:model/next-state command)
                                                                (:next-state command))]
                                                   (f state args result)
@@ -81,7 +78,11 @@
   ([spec generated-commands println] 
    (let [[state result ex] (reduce (fn [[state results] [result-var [com & raw-args]]]
                                      (let [command (get (:commands spec) com)
-                                           args (replace results raw-args)
+                                           args (walk/prewalk (fn [value]
+                                                                (if (satisfies? SymbolicValue value)
+                                                                  (get-real-value value results)
+                                                                  value))
+                                                              raw-args)
                                            [result exception] (try [(do (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
                                                                         (apply (:real/command command) args))
                                                                     nil]
@@ -151,9 +152,13 @@
 (defn print-test-results [spec results]
   (when-not (true? (:result results))
     (println "\nFailing test case:")
-    (run-commands spec (-> results :fail first) println)
+    (try
+      (run-commands spec (-> results :fail first) println)
+      (catch Throwable ex))
     (println "Shrunk:")
-    (run-commands spec (-> results :shrunk :smallest first) println)))
+    (try
+      (run-commands spec (-> results :shrunk :smallest first) println)
+      (catch Throwable ex))))
 
 
 
