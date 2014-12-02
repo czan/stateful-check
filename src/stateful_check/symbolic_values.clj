@@ -2,7 +2,9 @@
 
 (defprotocol SymbolicValue
   (get-real-value [this real-values]
-    "Lookup the value of this symbolic value in a real-values map"))
+    "Lookup the value of this symbolic value in a real-values map")
+  (valid? [this results]
+    "Detemine whether this symbolic value can be legally looked up in the results map"))
 
 
 
@@ -12,12 +14,14 @@
     (get (get-real-value root-var real-values)
          key
          not-found))
+  (valid? [this results]
+    (valid? root-var results))
 
   clojure.lang.ILookup
   (valAt [this key]
-    (->LookupVar this key nil))
+    (LookupVar. this key nil))
   (valAt [this key not-found]
-    (->LookupVar this key not-found)))
+    (LookupVar. this key not-found)))
 
 (defmethod print-method LookupVar
   [^LookupVar v, ^java.io.Writer writer]
@@ -32,10 +36,20 @@
 
 
 
-(deftype RootVar [num]
+(deftype RootVar [name]
   SymbolicValue
   (get-real-value [this real-values]
     (get real-values this))
+  (valid? [this results]
+    (contains? results this))
+
+  Object
+  (equals [this other]
+    (and (instance? RootVar other)
+         (= (.-name this)
+            (.-name other))))
+  (hashCode [this]
+    (.hashCode name))
 
   clojure.lang.ILookup
   (valAt [this key]
@@ -45,4 +59,4 @@
 
 (defmethod print-method RootVar
   [^RootVar v, ^java.io.Writer writer]
-  (.write writer (str "#<" (.-num v) ">")))
+  (.write writer (str "#<" (.-name v) ">")))

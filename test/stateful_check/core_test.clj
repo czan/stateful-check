@@ -15,11 +15,7 @@
     val))
 
 (def queue-spec
-  {:commands {:create {:next-state (fn [state _ result]
-                                     {:queue result
-                                      :elements []})
-                       :real/command #'new-queue}
-              :push {:model/args (fn [state]
+  {:commands {:push {:model/args (fn [state]
                                    (gen/tuple (gen/return (:queue state))
                                               gen/nat))
                      :model/precondition (fn [state _]
@@ -36,12 +32,13 @@
                     :next-state (fn [state _ _]
                                   (assoc state
                                     :elements (vec (next (:elements state)))))
-                    :real/postcondition (fn [state _ val]
+                    :real/postcondition (fn [state args val]
                                           (= val (first (:elements state))))}}
-   :generate-command (fn [state]
-                       (gen/elements (if (nil? state)
-                                       [:create]
-                                       [:push :pop])))})
+   :model/generate-command (fn [state]
+                             (gen/elements [:push :pop]))
+   :initial-state (fn [queue]
+                    {:queue queue, :elements []})
+   :real/setup #'new-queue})
 
 (defspec prop-queue
   (reality-matches-model? queue-spec))
@@ -51,11 +48,9 @@
 (def atomic-set-spec
   {:commands {:add {:model/args (fn [state]
                                   (gen/tuple gen/nat))
-                    :model/precondition (fn [state _]
-                                          (not (nil? state)))
                     :next-state (fn [state [arg] _]
-                                  (conj state arg))
-                    :real/command (partial swap! global-state conj)}
+                                  (conj (or state #{}) arg))
+                    :real/command #(swap! global-state conj %)}
 
               :remove {:model/args (fn [state]
                                      (gen/tuple (gen/elements (vec state))))
@@ -63,28 +58,30 @@
                                              (not (empty? state)))
                        :next-state (fn [state [arg] _]
                                      (disj state arg))
-                       :real/command (partial swap! global-state disj)}
+                       :real/command #(swap! global-state disj %)}
 
               :contains? {:model/args (fn [state]
                                         (gen/tuple (gen/one-of [(gen/elements (vec state))
                                                                 gen/nat])))
-                          :real/command (fn [val]
-                                          (contains? @global-state val))
+                          :real/command #(contains? @global-state %)
                           :real/postcondition (fn [state [value] result]
                                                 (= (contains? state value) result))}
 
-              :empty? {:real/command (fn [] (empty? @global-state))
+              :empty? {:real/command #(empty? @global-state)
                        :real/postcondition (fn [state _ result]
                                              (= (empty? state) result))}
 
               :empty {:next-state (fn [state _ _] #{})
                       :real/command (fn [] (reset! global-state #{}))}}
-   :generate-command (fn [state]
-                       (gen/elements (cond
-                                      (nil? state) [:empty]
-                                      (empty? state) [:add]
-                                      :else [:add :remove :contains? :empty? :empty])))
-   :cleanup (fn [state] (reset! global-state #{}))})
+   
+   :model/generate-command (fn [state]
+                             (gen/elements (cond
+                                            (empty? state) [:add]
+                                            :else [:add :remove :contains? :empty? :empty])))
+   
+   :initial-state (fn [_]
+                    #{1})
+   :real/setup #(reset! global-state #{})})
 
 (defspec prop-atomic-set
   (reality-matches-model? atomic-set-spec))
@@ -119,10 +116,10 @@
                                            :real/command ticker-take
                                            :real/postcondition (fn [state [ticker] result]
                                                                  (= result (inc (get state ticker))))}}
-                  :generate-command (fn [state]
-                                      (gen/elements (if (nil? state)
-                                                      [:alloc-ticker]
-                                                      [:alloc-ticker :zero :take-ticket])))})
+                  :model/generate-command (fn [state]
+                                            (gen/elements (if (nil? state)
+                                                            [:alloc-ticker]
+                                                            [:alloc-ticker :zero :take-ticket])))})
 
 (defspec prop-ticker
   (reality-matches-model? ticker-spec))
@@ -235,10 +232,10 @@
                                        :remove remove-set-command 
                                        :contains? contains?-set-command}]
                      {:commands command-map
-                      :generate-command (fn [state]
-                                          (gen/elements (if (nil? state)
-                                                          [:new]
-                                                          (keys command-map))))}))
+                      :model/generate-command (fn [state]
+                                                (gen/elements (if (nil? state)
+                                                                [:new]
+                                                                (keys command-map))))}))
 
 (def full-set-spec (let [command-map {:new new-set-command 
                                       :add add-set-command 
@@ -250,10 +247,10 @@
                                       :remove-all remove-all-set-command
                                       :retain-all retain-all-set-command}]
                      {:commands command-map
-                      :generate-command (fn [state]
-                                          (gen/elements (if (nil? state)
-                                                          [:new]
-                                                          (keys command-map))))}))
+                      :model/generate-command (fn [state]
+                                                (gen/elements (if (nil? state)
+                                                                [:new]
+                                                                (keys command-map))))}))
 
 (defspec prop-set
   (reality-matches-model? full-set-spec))

@@ -147,14 +147,14 @@ specification.
     {:commands {:new new-queue-specification
                 :push push-queue-specification
                 :pop pop-queue-specification}
-     :generate-command (fn [state]
-                         (if (nil? state)
-                           (gen/return :new)
-                           (gen/elements [:push :pop])))})
+     :model/generate-command (fn [state]
+                               (if (nil? state)
+                                 (gen/return :new)
+                                 (gen/elements [:push :pop])))})
 #+END_SRC
 
 The ~:commands~ key just contains a map of each command spec we are
-using for this model. ~:generate-command~ is a function from the
+using for this model. ~:model/generate-command~ is a function from the
 abstract state to a generator which will generate a new command.
 
 Let's see what happens when we run this specification:
@@ -209,6 +209,26 @@ Success!
 
 * Specifications
 
+When reading a ~stateful-check~ specification there are two main types
+of keys: ~model~ and ~real~.
+
+- ~model~ keys are ones which are keywords in the ~model~ namespace
+  (that is, ~:model/X~). They deal exclusively with the abstract state
+  of the system, and are only run during command generation. They
+  should have no side effects. They are always provided with symbolic
+  values representing the results of real commands.
+
+- ~real~ keys are ones which are keywords in the ~real~ namespace
+  (that is, ~:real/X~). They deal with the real state of the system
+  and are only run during command execution. They can perform any
+  side-effecting operation and are given the actual results of
+  previous commands.
+
+The distinction between the two types of keys is very important. While
+values can flow from the ~model~ functions to the ~real~ functions,
+they cannot flow the other way. ~model~ functions are only given
+placeholders representing ~real~ values.
+
 ** Model specifications
 
 A model specification is a map with two required keys:
@@ -216,25 +236,48 @@ A model specification is a map with two required keys:
 - ~:commands~ is a map with values which are command specifications
   (see below). This map contains all the operations which
   ~stateful-check~ knows how to perform. The keys to this map are
-  opaque to ~stateful-check~, but are used in the ~:generate-commands~
-  function (and must be printable).
+  opaque to ~stateful-check~, but are used in the
+  ~:model/generate-command~ function (and must be printable).
 
-- ~:generate-commands~ is a function from an abstract state to a
+- ~:model/generate-command~ is a function from an abstract state to a
   generator. In the interests of efficiency this function should
   attempt to create a generator which will only produce valid
   commands. A generated command is a key into the ~:commands~ map.
 
-There are two optional keys:
+There are six optional keys:
 
-- ~:setup~ is a function of zero arguments which is called prior to
-  any commands being run. It can return an initial state of the system
-  for a run (note that the abstract state for command generation
-  always starts as ~nil~). Any resources allocated in this function
-  are effectively unavailable to commands (as no abstract handle can
-  be given for argument generation).
+- ~:model/initial-state~ is a function to generate the initial state
+  of the abstract system. If the spec also has a ~:real/setup~
+  function then ~:model/initial-state~ will be provided with an
+  argument which is a symbolic value representing the return value of
+  the ~:real/setup~ function. If no ~:real/setup~ function can be
+  found then ~:model/initial-state~ will be called with no arguments.
 
-- ~:cleanup~ is a function of the state which can perform any cleanup
-  operations required. Its return value is ignored.
+- ~:real/initial-state~ is the same as the ~:model/initial-state~
+  function, except for the concrete command state. If a ~:real/setup~
+  key exists then ~:real/initial-state~ will be passed the return
+  value of the ~:real/setup~ function. Otherwise, it will be called
+  with no arguments.
+
+- ~:initial-state~ is a shortcut for defining both
+  ~:model/initial-state~ and ~:real/initial-state~ in instances where
+  the difference is irrelevant. It will be provided with either an
+  abstract value or a concrete value, depending on when it is
+  run. Precedence is given to the namespaced keys if they are present.
+
+- ~:real/setup~ is a function of zero arguments which is called prior
+  to any commands being run in an execution. Its return value is
+  passed to the ~:real/initial-state~ function, and is available in
+  symbolic form to the ~:model/initial-state~ function.
+
+- ~:real/cleanup~ is a function of the state which can perform any
+  cleanup operations required. Its return value is ignored.
+
+- ~:real/postcondition~ is a function of the state which can perform
+  general postcondition checking. This is run after each call to
+  ~:real/next-state~ with the result of the transformation. This is
+  intended to aid in testing things which must always be true, to
+  avoid having to repeat them in each postcondition.
 
 ** Command specifications
 
@@ -257,12 +300,12 @@ There are six optional keys:
 - ~:model/next-state~ is a function from the state, the arguments and
   an abstract result placeholder to the next state for the system.
 
-- ~:next-state~ is a shortcut for specifying ~:model/next-state~ and
-  ~:real/next-state~ to be the same function. Precedence is given to
-  the more specific functions if they are present.
-
 - ~:real/next-state~ is a function from the state, the arguments and a
   concrete result to the next state for the system.
+
+- ~:next-state~ is a shortcut for specifying ~:model/next-state~ and
+  ~:real/next-state~ to be the same function. Precedence is given to
+  the namespaced keys if they are present.
 
 - ~:real/postcondition~ is a function from the state, the arguments
   and a concrete result to a value indicating whether this command
