@@ -9,35 +9,33 @@
 
 (def init-symbolic-var (->RootVar "setup"))
 
-(defn generate-commands* [spec count state]
+(defn generate-commands* [spec count size state]
   "Returns a list of rose-trees *within* the monad of gen/gen-pure"
-  (gen/sized
-   (fn [size]
-     (gen/frequency
-      [[1 (gen/gen-pure nil)]
-       [size (gen-do com-rose <- ((:model/generate-command spec) state)
-                     :let [com (rose/root com-rose)
-                           command (get (:commands spec) com)
-                           _ (assert command (str "Command " com " not found in :commands map"))]
-                     rose <- (if-let [f (:model/args command)]
-                               (f state)
-                               (gen/return []))
-                     :let [args (rose/root rose)
-                           precondition-passed? (if-let [f (:model/precondition command)]
-                                                  (f state args)
-                                                  true)]
-                     (if precondition-passed?
-                       (gen-do :let [result (->RootVar count)
-                                     next-state (if-let [f (or (:model/next-state command)
-                                                               (:next-state command))]
-                                                  (f state args result)
-                                                  state)]
-                               roses <- (gen/resize (dec size) (generate-commands* spec (inc count) next-state))
-                               (gen/gen-pure (cons (rose/fmap (fn [args]
-                                                                [result (cons com args)])
-                                                              rose)
-                                                   roses)))
-                       (generate-commands* spec count state)))]]))))
+  (gen/frequency
+   [[1 (gen/gen-pure nil)]
+    [size (gen-do com-rose <- ((:model/generate-command spec) state)
+                  :let [com (rose/root com-rose)
+                        command (get (:commands spec) com)
+                        _ (assert command (str "Command " com " not found in :commands map"))]
+                  rose <- (if-let [f (:model/args command)]
+                            (f state)
+                            (gen/return []))
+                  :let [args (rose/root rose)
+                        precondition-passed? (if-let [f (:model/precondition command)]
+                                               (f state args)
+                                               true)]
+                  (if precondition-passed?
+                    (gen-do :let [result (->RootVar count)
+                                  next-state (if-let [f (or (:model/next-state command)
+                                                            (:next-state command))]
+                                               (f state args result)
+                                               state)]
+                            roses <- (generate-commands* spec (inc count) (dec size) next-state)
+                            (gen/gen-pure (cons (rose/fmap (fn [args]
+                                                             [result (cons com args)])
+                                                           rose)
+                                                roses)))
+                    (generate-commands* spec count size state)))]]))
 
 
 (defn remove-chunks
@@ -70,7 +68,8 @@
     [[] []]))
 
 (defn generate-commands [spec state]
-  (gen/gen-bind (generate-commands* spec 0 state)
+  (gen/gen-bind (gen/sized (fn [size]
+                             (generate-commands* spec 0 size state)))
                 (fn [roses]
                   (gen/gen-pure (shrink-commands-roses roses)))))
 

@@ -226,16 +226,17 @@
          {:real/command #(.retainAll %1 %2)}))
 
 
-(def small-set-spec (let [command-map {:new (merge new-set-command
-                                                   {:model/precondition (fn [state _] (nil? state))}) 
-                                       :add add-set-command 
+(def small-set-spec (let [command-map {:add add-set-command 
                                        :remove remove-set-command 
                                        :contains? contains?-set-command}]
                      {:commands command-map
                       :model/generate-command (fn [state]
-                                                (gen/elements (if (nil? state)
-                                                                [:new]
-                                                                (keys command-map))))}))
+                                                (gen/elements (keys command-map)))
+                      :initial-state (fn [set] [[set #{}]])
+                      :real/setup #(java.util.HashSet.)}))
+
+(defspec prop-small-set
+  (reality-matches-model? small-set-spec))
 
 (def full-set-spec (let [command-map {:new new-set-command 
                                       :add add-set-command 
@@ -252,5 +253,5 @@
                                                                 [:new]
                                                                 (keys command-map))))}))
 
-(defspec prop-set
+(defspec prop-full-set
   (reality-matches-model? full-set-spec))
