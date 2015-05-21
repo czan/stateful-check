@@ -3,6 +3,7 @@
             [clojure.test.check :refer [quick-check]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
+            [clojure.set :as set]
             [stateful-check.core :refer :all]))
 
 (defn new-queue [] (atom (clojure.lang.PersistentQueue/EMPTY)))
@@ -214,15 +215,15 @@
                                   (alist-get state set1))))})
 
 (def add-all-set-command
-  (merge (binary-set-command clojure.set/union)
+  (merge (binary-set-command set/union)
          {:real/command #(.addAll %1 %2)}))
 
 (def remove-all-set-command
-  (merge (binary-set-command clojure.set/difference)
+  (merge (binary-set-command set/difference)
          {:real/command #(.removeAll %1 %2)}))
 
 (def retain-all-set-command
-  (merge (binary-set-command clojure.set/intersection)
+  (merge (binary-set-command set/intersection)
          {:real/command #(.retainAll %1 %2)}))
 
 
