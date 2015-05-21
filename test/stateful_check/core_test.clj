@@ -80,7 +80,7 @@
                                             :else [:add :remove :contains? :empty? :empty])))
    
    :initial-state (fn [_]
-                    #{1})
+                    #{})
    :real/setup #(reset! global-state #{})})
 
 (defspec prop-atomic-set
