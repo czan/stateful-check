@@ -104,15 +104,16 @@
                                            result (with-rethrown-state state
                                                     (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
                                                     (apply (:real/command command) args))
-                                           passed? (if-let [f (:real/postcondition command)]
-                                                     (with-rethrown-state state
-                                                       (f state args result))
-                                                     true)
+                                           old-state state
                                            state (if-let [f (or (:real/next-state command)
                                                                 (:next-state command))]
                                                    (with-rethrown-state state
-                                                     (f state args result))
+                                                     (f old-state args result))
                                                    state)
+                                           passed? (if-let [f (:real/postcondition command)]
+                                                     (with-rethrown-state state
+                                                       (f old-state state args result))
+                                                     true)
                                            passed-spec? (if (not passed?)
                                                           true
                                                           (if-let [f (:real/postcondition spec)]

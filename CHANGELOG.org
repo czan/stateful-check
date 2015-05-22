@@ -1,5 +1,18 @@
 * 0.3.0
 
+- *breaking* add ~next-state~ to the ~:real/postcondition~ function
+  arguments in commands
+
+  Any command preconditions will need to be modified to take an extra
+  argument
+  #+BEGIN_SRC clojure
+    (fn [state args result]
+      arbitrary-logic-for-postcondition)
+    ;; needs to change to
+    (fn [prev-state next-state args result]
+      arbitrary-logic-for-postcondition)
+  #+END_SRC
+
 - make the command generator use the same size for all commands
 
 * 0.2.0

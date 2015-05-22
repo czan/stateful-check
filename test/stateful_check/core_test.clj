@@ -33,7 +33,7 @@
                     :next-state (fn [state _ _]
                                   (assoc state
                                     :elements (vec (next (:elements state)))))
-                    :real/postcondition (fn [state args val]
+                    :real/postcondition (fn [state _ args val]
                                           (= val (first (:elements state))))}}
    :model/generate-command (fn [state]
                              (gen/elements [:push :pop]))
@@ -65,11 +65,11 @@
                                         (gen/tuple (gen/one-of [(gen/elements (vec state))
                                                                 gen/nat])))
                           :real/command #(contains? @global-state %)
-                          :real/postcondition (fn [state [value] result]
+                          :real/postcondition (fn [state _ [value] result]
                                                 (= (contains? state value) result))}
 
               :empty? {:real/command #(empty? @global-state)
-                       :real/postcondition (fn [state _ result]
+                       :real/postcondition (fn [state _ _ result]
                                              (= (empty? state) result))}
 
               :empty {:next-state (fn [state _ _] #{})
@@ -115,7 +115,7 @@
                                                          (assoc state
                                                            ticker (inc (get state ticker))))
                                            :real/command ticker-take
-                                           :real/postcondition (fn [state [ticker] result]
+                                           :real/postcondition (fn [state _ [ticker] result]
                                                                  (= result (inc (get state ticker))))}}
                   :model/generate-command (fn [state]
                                             (gen/elements (if (nil? state)
@@ -164,7 +164,7 @@
   {:model/args set-and-item
    :next-state (fn [state [set item] _]
                  (alist-update state set action item))
-    :real/postcondition (fn [state [set item] result]
+    :real/postcondition (fn [state _ [set item] result]
                          (= result
                             (not= (alist-get state set)
                                   (action (alist-get state set) item))))})
@@ -180,7 +180,7 @@
 (def contains?-set-command
   {:model/args set-and-item
    :real/command #(.contains %1 %2)
-   :real/postcondition (fn [state [set item] result]
+   :real/postcondition (fn [state _ [set item] result]
                          (= result (contains? (alist-get state set) item)))})
 
 
@@ -196,7 +196,7 @@
   {:model/args (fn [state]
                  (gen/tuple (gen/elements (map first state))))
    :real/command #(.isEmpty %1)
-   :real/postcondition (fn [state [set] result]
+   :real/postcondition (fn [state _ [set] result]
                          (= result (empty? (alist-get state set))))})
 
 
@@ -208,7 +208,7 @@
    :next-state (fn [state [set1 set2] _]
                  (alist-update state set1
                                combiner (alist-get state set2)))
-   :real/postcondition (fn [state [set1 set2] result]
+   :real/postcondition (fn [state _ [set1 set2] result]
                          (= result
                             (not= (combiner (alist-get state set1)
                                             (alist-get state set2))

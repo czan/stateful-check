@@ -125,7 +125,7 @@ Lastly, ~pop-queue~:
      :next-state (fn [state _ _]
                    (assoc state
                      :elements (vec (next (:elements state)))))
-     :real/postcondition (fn [state _ val]
+     :real/postcondition (fn [state _ _ val]
                            (= val (first (:elements state))))})
 #+END_SRC
 
@@ -307,11 +307,11 @@ There are six optional keys:
   ~:real/next-state~ to be the same function. Precedence is given to
   the namespaced keys if they are present.
 
-- ~:real/postcondition~ is a function from the state, the arguments
-  and a concrete result to a value indicating whether this command
-  succeeded. If the return value of this function is falsey then this
-  command (and hence this sequence of commands) is considered to be
-  failed.
+- ~:real/postcondition~ is a function from the previous state, the
+  next state, the arguments and a concrete result to a value
+  indicating whether this command succeeded. If the return value of
+  this function is falsey then this command (and hence this sequence
+  of commands) is considered to be failed.
 
 If any of these functions throw an exception it will provoke a test
 failure.
