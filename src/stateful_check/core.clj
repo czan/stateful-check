@@ -169,7 +169,7 @@
 
 
 
-(defn reality-matches-model? [spec]
+(defn reality-matches-model [spec]
   (for-all [commands (gen/such-that (partial valid-commands? spec)
                                     (generate-commands spec (let [initial-state-fn (or (:model/initial-state spec)
                                                                                        (:initial-state spec)

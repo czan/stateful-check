@@ -42,7 +42,7 @@
    :real/setup #'new-queue})
 
 (defspec prop-queue
-  (reality-matches-model? queue-spec))
+  (reality-matches-model queue-spec))
 
 
 (def global-state (atom #{}))
@@ -85,7 +85,7 @@
    :real/setup #(reset! global-state #{})})
 
 (defspec prop-atomic-set
-  (reality-matches-model? atomic-set-spec))
+  (reality-matches-model atomic-set-spec))
 
 
 
@@ -123,7 +123,7 @@
                                                             [:alloc-ticker :zero :take-ticket])))})
 
 (defspec prop-ticker
-  (reality-matches-model? ticker-spec))
+  (reality-matches-model ticker-spec))
 
 
 
@@ -237,7 +237,7 @@
                       :real/setup #(java.util.HashSet.)}))
 
 (defspec prop-small-set
-  (reality-matches-model? small-set-spec))
+  (reality-matches-model small-set-spec))
 
 (def full-set-spec (let [command-map {:new new-set-command 
                                       :add add-set-command 
@@ -255,4 +255,4 @@
                                                                 (keys command-map))))}))
 
 (defspec prop-full-set
-  (reality-matches-model? full-set-spec))
+  (reality-matches-model full-set-spec))
