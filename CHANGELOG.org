@@ -1,3 +1,7 @@
+* 0.3.0
+
+- make the command generator use the same size for all commands
+
 * 0.2.0
 
 - add namespaces to some keys which didn't have them before
