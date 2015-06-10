@@ -78,6 +78,78 @@
         (catch Throwable ex#
           (throw (ex-info "Something was thrown" {:state ~state} ex#)))))
 
+
+(defmulti step-command-runner (fn [state-name & _]
+                                state-name))
+(defmethod step-command-runner
+  :next-command
+  [_ command-list state]
+  (if-let [command-list (next command-list)]
+    [:precondition-check command-list state]
+    [:pass]))
+
+(defmethod step-command-runner
+  :precondition-check
+  [_ [[command & args] :as command-list] state]
+  (if-let [precondition (:model/precondition command)]
+    (try (if (precondition state args)
+           [:run-command command-list state]
+           [:fail])
+         (catch Throwable ex
+           [:fail ex]))
+    [:run-command command-list state]))
+
+(defmethod step-command-runner
+  :run-command
+  [_ [[command & args] :as command-list] state]
+  (if-let [real-command (:real/command command)]
+    (try [:next-state command-list state (apply real-command args)]
+         (catch Throwable ex
+           [:fail ex]))
+    [:fail "No :real/command function!"]))
+
+(defmethod step-command-runner
+  :next-state
+  [_ [[command & args] :as command-list] previous-state result]
+  (if-let [next-state (or (:real/next-state command)
+                          (:next-state command))]
+    (try [:postcondition-check command-list
+          (next-state previous-state args result)
+          previous-state
+          result]
+         (catch Throwable ex
+           [:fail ex]))
+    [:postcondition-check command-list previous-state previous-state result]))
+
+(defmethod step-command-runner
+  :postcondition-check
+  [_ [[command & args] :as command-list] next-state prev-state result]
+  (if-let [postcondition (:real/postcondition command)]
+    (try (if (postcondition prev-state next-state args result)
+           [:next-command command-list next-state]
+           [:fail])
+         (catch Throwable ex
+           [:fail ex]))
+    [:next-command command-list next-state]))
+
+(defmethod step-command-runner :fail [& _])
+(defmethod step-command-runner :pass [& _])
+
+(let [command-list [[{:real/command #(do (println 10)
+                                         10)
+                      :next-state (fn [state args result]
+                                    (assoc state :key result))}]
+                    [{:real/command #(do (println 20)
+                                         20)
+                      :next-state (fn [state args result]
+                                    (assoc state :key2 result))
+                      :real/postcondition (fn [prev-state next-state args result]
+                                            (throw (RuntimeException. "Exception2!")))}]]]
+  (->> [:precondition-check command-list {}]
+       (iterate (partial apply step-command-runner))
+       (take-while (complement nil?))
+       (map (comp second next))))
+
 (defn run-commands
   ([spec generated-commands]
    (run-commands spec generated-commands (fn [& args])))
