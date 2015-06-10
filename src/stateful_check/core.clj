@@ -37,34 +37,10 @@
                                                 roses)))
                     (generate-commands* spec count size state)))]]))
 
-
-(defn remove-chunks
-  [fraction roses]
-  (let [num (count roses)
-        size (/ num fraction)]
-    (for [counter (range fraction)
-          :let [slice-to-drop (dec (- fraction counter))]]
-      (cond
-       (zero? slice-to-drop) (drop size
-                                   roses)
-       (= slice-to-drop (dec fraction)) (take (* size slice-to-drop)
-                                              roses)
-       :else (concat (take (* size slice-to-drop)
-                           roses)
-                     (drop (* size (inc slice-to-drop))
-                           roses))))))
-
-(defn sublist-roses [roses]
-  (concat (let [num (count roses)]
-            (->> (iterate inc 2)
-                 (take-while #(<= % num))
-                 (mapcat #(remove-chunks % roses))))
-          (rose/permutations (vec roses))))
-
 (defn shrink-commands-roses [roses]
   (if (seq roses)
     [(apply vector (map rose/root roses))
-     (map shrink-commands-roses (sublist-roses roses))]
+     (map shrink-commands-roses (rose/remove (vec roses)))]
     [[] []]))
 
 (defn generate-commands [spec state]
