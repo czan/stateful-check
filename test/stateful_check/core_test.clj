@@ -10,6 +10,8 @@
 (defn push-queue [queue val]
   (swap! queue conj val)
   nil)
+(defn peek-queue [queue]
+  (peek @queue))
 (defn pop-queue [queue]
   (let [val (peek @queue)]
     (swap! queue pop)
@@ -24,7 +26,14 @@
                      :real/command #'push-queue
                      :next-state (fn [state [_ val] _]
                                    (assoc state
-                                     :elements (conj (:elements state) val)))}
+                                          :elements (conj (:elements state) val)))}
+              :peek {:model/args (fn [state]
+                                   (gen/return [(:queue state)]))
+                     :model/precondition (fn [state _]
+                                           (not (empty? (:elements state))))
+                     :real/command #'peek-queue
+                     :real/postcondition (fn [state _ args val]
+                                           (= val (first (:elements state))))}
               :pop {:model/args (fn [state]
                                   (gen/return [(:queue state)]))
                     :model/precondition (fn [state _]
@@ -32,7 +41,7 @@
                     :real/command #'pop-queue
                     :next-state (fn [state _ _]
                                   (assoc state
-                                    :elements (vec (next (:elements state)))))
+                                         :elements (vec (next (:elements state)))))
                     :real/postcondition (fn [state _ args val]
                                           (= val (first (:elements state))))}}
    :model/generate-command (fn [state]
@@ -77,8 +86,8 @@
    
    :model/generate-command (fn [state]
                              (gen/elements (cond
-                                            (empty? state) [:add]
-                                            :else [:add :remove :contains? :empty? :empty])))
+                                             (empty? state) [:add]
+                                             :else [:add :remove :contains? :empty? :empty])))
    
    :initial-state (fn [_]
                     #{})
@@ -113,7 +122,7 @@
                                            :model/precondition (fn [state _] state)
                                            :next-state (fn [state [ticker] _]
                                                          (assoc state
-                                                           ticker (inc (get state ticker))))
+                                                                ticker (inc (get state ticker))))
                                            :real/command ticker-take
                                            :real/postcondition (fn [state _ [ticker] result]
                                                                  (= result (inc (get state ticker))))}}
@@ -164,7 +173,7 @@
   {:model/args set-and-item
    :next-state (fn [state [set item] _]
                  (alist-update state set action item))
-    :real/postcondition (fn [state _ [set item] result]
+   :real/postcondition (fn [state _ [set item] result]
                          (= result
                             (not= (alist-get state set)
                                   (action (alist-get state set) item))))})
@@ -230,17 +239,17 @@
 (def small-set-spec (let [command-map {:add add-set-command 
                                        :remove remove-set-command 
                                        :contains? contains?-set-command}]
-                     {:commands command-map
-                      :model/generate-command (fn [state]
-                                                (gen/elements (keys command-map)))
-                      :initial-state (fn [set] [[set #{}]])
-                      :real/setup #(java.util.HashSet.)}))
+                      {:commands command-map
+                       :model/generate-command (fn [state]
+                                                 (gen/elements (keys command-map)))
+                       :initial-state (fn [set] [[set #{}]])
+                       :real/setup #(java.util.HashSet.)}))
 
 (defspec prop-small-set
   (reality-matches-model small-set-spec))
 
-(def full-set-spec (let [command-map {:new new-set-command 
-                                      :add add-set-command 
+(def full-set-spec (let [command-map {:new new-set-command
+                                      :add add-set-command
                                       :remove remove-set-command 
                                       :contains? contains?-set-command
                                       :clear clear-set-command
