@@ -1,13 +1,18 @@
 (ns stateful-check.core
-  (:require [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :refer [for-all]]
-            [clojure.test.check :refer [quick-check]]
-            [clojure.test.check.rose-tree :as rose]
-            [clojure.walk :as walk]
-            [stateful-check.gen :refer [gdo gen-do]]
-            [stateful-check.symbolic-values :refer [SymbolicValue ->RootVar get-real-value] :as symbolic-values]))
+  (:require clojure.test.check
+            [clojure.test.check
+             [generators :as gen]
+             [properties :refer [for-all]]
+             [rose-tree :as rose]]
+            [stateful-check
+             [command-runner :as r]
+             [command-verifier :as v]
+             [gen :refer [gen-do]]
+             [symbolic-values :as symbolic-values :refer [->RootVar SymbolicValue]]]))
 
-(def init-symbolic-var (->RootVar "setup"))
+;; The "setup" step uses a symbolic var, so we might as well just
+;; allocate it once here and use it later.
+(def ^:private setup-symbolic-var (->RootVar "setup"))
 
 (defn generate-commands* [spec count size state]
   "Returns a list of rose-trees *within* the monad of gen/gen-pure"
@@ -49,194 +54,78 @@
                 (fn [roses]
                   (gen/gen-pure (shrink-commands-roses roses)))))
 
-(defmacro with-rethrown-state [state & body]
-  `(try ~@body
-        (catch Throwable ex#
-          (throw (ex-info "Something was thrown" {:state ~state} ex#)))))
+(defn inline-commands [spec command-list]
+  (map (fn [[sym-var [cmd & args]]]
+         [sym-var (cons (-> (:commands spec)
+                            (get cmd)
+                            (assoc :name cmd))
+                        args)])
+       command-list))
 
-
-(defmulti step-command-runner (fn [state-name & _]
-                                state-name))
-(defmethod step-command-runner
-  :next-command
-  [_ command-list state]
-  (if-let [command-list (next command-list)]
-    [:precondition-check command-list state]
-    [:pass]))
-
-(defmethod step-command-runner
-  :precondition-check
-  [_ [[command & args] :as command-list] state]
-  (if-let [precondition (:model/precondition command)]
-    (try (if (precondition state args)
-           [:run-command command-list state]
-           [:fail])
-         (catch Throwable ex
-           [:fail ex]))
-    [:run-command command-list state]))
-
-(defmethod step-command-runner
-  :run-command
-  [_ [[command & args] :as command-list] state]
-  (if-let [real-command (:real/command command)]
-    (try [:next-state command-list state (apply real-command args)]
-         (catch Throwable ex
-           [:fail ex]))
-    [:fail "No :real/command function!"]))
-
-(defmethod step-command-runner
-  :next-state
-  [_ [[command & args] :as command-list] previous-state result]
-  (if-let [next-state (or (:real/next-state command)
-                          (:next-state command))]
-    (try [:postcondition-check command-list
-          (next-state previous-state args result)
-          previous-state
-          result]
-         (catch Throwable ex
-           [:fail ex]))
-    [:postcondition-check command-list previous-state previous-state result]))
-
-(defmethod step-command-runner
-  :postcondition-check
-  [_ [[command & args] :as command-list] next-state prev-state result]
-  (if-let [postcondition (:real/postcondition command)]
-    (try (if (postcondition prev-state next-state args result)
-           [:next-command command-list next-state]
-           [:fail])
-         (catch Throwable ex
-           [:fail ex]))
-    [:next-command command-list next-state]))
-
-(defmethod step-command-runner :fail [& _])
-(defmethod step-command-runner :pass [& _])
-
-(let [command-list [[{:real/command #(do (println 10)
-                                         10)
-                      :next-state (fn [state args result]
-                                    (assoc state :key result))}]
-                    [{:real/command #(do (println 20)
-                                         20)
-                      :next-state (fn [state args result]
-                                    (assoc state :key2 result))
-                      :real/postcondition (fn [prev-state next-state args result]
-                                            (throw (RuntimeException. "Exception2!")))}]]]
-  (->> [:precondition-check command-list {}]
-       (iterate (partial apply step-command-runner))
-       (take-while (complement nil?))
-       (map (comp second next))))
-
-(defn run-commands
-  ([spec generated-commands]
-   (run-commands spec generated-commands (fn [& args])))
-  ([spec generated-commands println] 
-   (try
-     (let [initial-state-fn (or (:real/initial-state spec)
-                                (:initial-state spec)
-                                (constantly nil))
-           setup-fn (:real/setup spec)
-           setup-value (if setup-fn (setup-fn))
-           initial-state (if setup-fn
-                           (initial-state-fn setup-value)
-                           (initial-state-fn))
-           initial-results (if setup-fn
-                             {init-symbolic-var setup-value}
-                             {})
-           [state results] (reduce (fn [[state results] [result-var [com & raw-args]]]
-                                     (let [command (get (:commands spec) com)
-                                           args (walk/prewalk (fn [value]
-                                                                (if (satisfies? SymbolicValue value)
-                                                                  (get-real-value value results)
-                                                                  value))
-                                                              raw-args)
-                                           result (with-rethrown-state state
-                                                    (assert (:real/command command) (str "Command " com " does not have a :real/command function"))
-                                                    (apply (:real/command command) args))
-                                           old-state state
-                                           state (if-let [f (or (:real/next-state command)
-                                                                (:next-state command))]
-                                                   (with-rethrown-state state
-                                                     (f old-state args result))
-                                                   state)
-                                           passed? (if-let [f (:real/postcondition command)]
-                                                     (with-rethrown-state state
-                                                       (f old-state state args result))
-                                                     true)
-                                           passed-spec? (if (not passed?)
-                                                          true
-                                                          (if-let [f (:real/postcondition spec)]
-                                                            (with-rethrown-state state
-                                                              (f state))
-                                                            true))]
-                                       (println "  " result-var "=" (cons com raw-args) "\t;=>" result)
-                                       (cond
-                                        (not passed?) (do (println "   !! Command postcondition failed !!")
-                                                          (reduced [state nil]))
-                                        (not passed-spec?) (do (println "   !! Specification postcondition failed !!")
-                                                               (reduced [state nil]))
-                                        :else [state (assoc results result-var result)])))
-                                   [initial-state initial-results]
-                                   generated-commands)]
-       (if-let [f (:real/cleanup spec)]
-         (f state))
-       (boolean results))
-     (catch clojure.lang.ExceptionInfo ex
-       (println "  !! Exception thrown !!")
-       (if-let [f (:real/cleanup spec)]
-         (f (get (ex-data ex) :state)))
-       (throw (.getCause ex))))))
+(defn run-commands [spec command-list]
+  (let [state-fn (or (:real/initial-state spec)
+                     (:initial-state spec)
+                     (constantly nil))
+        setup-fn (:real/setup spec)
+        setup-value (if setup-fn (setup-fn))
+        results (if setup-fn
+                  {setup-symbolic-var setup-value})
+        state (if setup-fn
+                (state-fn setup-value)
+                (state-fn))
+        command-results (r/run-commands (inline-commands spec command-list) results state)]
+    (if-let [f (:real/cleanup spec)]
+      (f (last (r/extract-states command-results))))
+    command-results))
 
 (defn valid-commands? [spec command-list]
-  (let [initial-state (let [initial-state-fn (or (:model/initial-state spec)
-                                                 (:initial-state spec)
-                                                 (constantly nil))]
-                        (if (:real/setup spec)
-                          (initial-state-fn init-symbolic-var)
-                          (initial-state-fn)))
-        initial-results (if (:real/setup spec)
-                          #{init-symbolic-var}
-                          #{})]
-    (first (reduce (fn [[valid? state results] [result-var [com & args]]]
-                     (let [command (get (:commands spec) com)
-                           precondition-passed? (and
-                                                 (every? (fn [arg]
-                                                           (if (satisfies? SymbolicValue arg)
-                                                             (symbolic-values/valid? arg results)
-                                                             true))
-                                                         args)
-                                                 (if-let [f (:model/precondition command)]
-                                                   (f state args)
-                                                   true))]
-                       (if precondition-passed?
-                         (if-let [f (or (:model/next-state command)
-                                        (:next-state command))]
-                           [true (f state args result-var) (conj results result-var)]
-                           [true state results])
-                         (reduced [false nil nil]))))
-                   [true initial-state initial-results] command-list))))
+  (v/valid? (inline-commands spec command-list)
+            (if (:real/setup spec)
+              #{setup-symbolic-var}
+              #{})
+            (let [initial-state-fn (or (:model/initial-state spec)
+                                       (:initial-state spec)
+                                       (constantly nil))]
+              (if (:real/setup spec)
+                (initial-state-fn setup-symbolic-var)
+                (initial-state-fn)))))
 
 
+(defn generate-valid-commands [spec]
+  (->> (let [initial-state-fn (or (:model/initial-state spec)
+                                  (:initial-state spec)
+                                  (constantly nil))]
+         (if (:real/setup spec)
+           (initial-state-fn setup-symbolic-var)
+           (initial-state-fn)))
+       (generate-commands spec)
+       (gen/such-that (partial valid-commands? spec))))
 
 (defn reality-matches-model [spec]
-  (for-all [commands (gen/such-that (partial valid-commands? spec)
-                                    (generate-commands spec (let [initial-state-fn (or (:model/initial-state spec)
-                                                                                       (:initial-state spec)
-                                                                                       (constantly nil))]
-                                                              (if (:real/setup spec)
-                                                                (initial-state-fn init-symbolic-var)
-                                                                (initial-state-fn)))))]
-    (run-commands spec commands)))
+  (for-all [commands (generate-valid-commands spec)]
+    (let [command-results (run-commands spec commands)
+          ex (r/extract-exception command-results)]
+      (cond (r/passed? command-results) trueg
+            ex (throw ex)
+            :else false))))
+
+(defn print-command-results [results]
+  (try
+    (doseq [[type :as step] results]
+      (case type
+        :postcondition-check
+        (let [[_ [[sym-var [{name :name} _ args]]] _ prev-state _ result] step]
+          (println \tab sym-var "=" (cons name args) "=>" result))
+        :fail
+        (if-let [ex (second step)]
+          (println \tab ex)
+          (println \tab "postcondition violation"))))
+    (catch Throwable ex
+      (println ex))))
 
 (defn print-test-results [spec results]
   (when-not (true? (:result results))
     (println "\nFailing test case:")
-    (try
-      (run-commands spec (-> results :fail first) println)
-      (catch Throwable ex))
+    (print-command-results (run-commands spec (-> results :fail first)))
     (println "Shrunk:")
-    (try
-      (run-commands spec (-> results :shrunk :smallest first) println)
-      (catch Throwable ex))))
-
-
-
+    (print-command-results (run-commands spec (-> results :shrunk :smallest first)))))

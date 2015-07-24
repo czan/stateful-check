@@ -13,11 +13,14 @@
       arbitrary-logic-for-postcondition)
   #+END_SRC
 
-- *breaking* change `reality-matches-model?` to be called
-  `reality-matches-model` (it's not a predicate, so it shouldn't have
-  a `?` in its name)
+- *breaking* change ~reality-matches-model?~ to be called
+  ~reality-matches-model~ (it's not a predicate, so it shouldn't have
+  a ~?~ in its name)
 
 - make the command generator use the same size for all commands
+
+- rewrite the command verifier/runner to make it a whole lot cleaner
+  (including breaking out two namespaces)
 
 * 0.2.0
 
