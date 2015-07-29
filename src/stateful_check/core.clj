@@ -155,16 +155,16 @@
          (let [[_ [cmd] _ prev-state _ result] step]
            (println "  " (format-command cmd) "\t=>" (pr-str result)))
          :fail
-         (if-let [[_ ex cmd] step]
+         (if-let [[_ ^Throwable ex cmd] step]
            (do (println "  " (format-command cmd) "\t=!!>" (.getMessage ex))
                (if stacktraces?
-                 (.printStackTrace ex *out*)))
+                 (.printStackTrace ex ^java.io.PrintWriter *out*)))
            (println "   !! postcondition violation"))
          nil))
      (catch Throwable ex
        (println "   !! exception thrown" (.getMessage ex))
        (if stacktraces?
-         (.printStackTrace ex *out*))))))
+         (.printStackTrace ex ^java.io.PrintWriter *out*))))))
 
 (defn print-test-results
   "Print the results of a test.check test in a more helpful form (each
