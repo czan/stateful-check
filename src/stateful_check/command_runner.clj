@@ -1,8 +1,16 @@
 (ns stateful-check.command-runner
   (:require [clojure.walk :as walk]
-            [stateful-check.symbolic-values :refer [SymbolicValue get-real-value]]))
+            [stateful-check
+             [command-utils :as u]
+             [symbolic-values :refer [get-real-value SymbolicValue]]]))
 
-(defmulti step-command-runner (fn [state-name & _] state-name))
+(defmulti ^:private step-command-runner
+  "Step the command runner state machine one step. Each state in the
+  state machine is represented by a \"variant\", which is a vector
+  with a key (the state name) and a series of values. What work needs
+  to be done in each state is taken care of by this method's
+  implementations, and they return a new state variant."
+  (fn [state-name & _] state-name))
 
 ;; :next-command, :precondition-check, :run-command, :next-state, :postcondition-check
 ;; :pass, :fail
@@ -26,90 +34,85 @@
 
 (defmethod step-command-runner :precondition-check
   [_ [[sym-var [command args]] :as command-list] results state]
-  (if-let [precondition (:model/precondition command)]
-    (try (if (precondition state args)
-           [:run-command
-            command-list
-            results
-            state]
-           [:fail])
-         (catch Throwable ex
-           [:fail ex]))
-    [:run-command
-     command-list
-     results
-     state]))
+  (try (if (u/check-precondition command state args)
+         [:run-command
+          command-list
+          results
+          state]
+         [:fail])
+       (catch Throwable ex
+         [:fail ex])))
 
 (defmethod step-command-runner :run-command
   [_ [[sym-var [command args raw-args]] :as command-list] results state]
-  (if-let [real-command (:real/command command)] 
-    (try (let [result (apply real-command args)
-               results (assoc results sym-var result)]
-           [:next-state
-            command-list
-            results
-            state
-            result])
-         (catch Throwable ex
-           [:fail ex [sym-var [command args raw-args]]]))
-    [:fail "No :real/command function!"]))
+  (try (let [result (u/run-command command args)
+             results (assoc results sym-var result)]
+         [:next-state
+          command-list
+          results
+          state
+          result])
+       (catch Throwable ex
+         [:fail ex [sym-var [command args raw-args]]])))
 
 (defmethod step-command-runner :next-state
   [_ [[sym-var [command args raw-args]] :as command-list] results previous-state result]
-  (if-let [next-state (or (:real/next-state command)
-                          (:next-state command))]
-    (try [:postcondition-check
-          command-list
-          results
-          (next-state previous-state args result)
-          previous-state
-          result]
-         (catch Throwable ex
-           [:fail ex [sym-var [command args raw-args]]]))
-    [:postcondition-check
-     command-list
-     results
-     previous-state
-     previous-state
-     result]))
+  (try [:postcondition-check
+        command-list
+        results
+        (u/real-make-next-state command previous-state args result)
+        previous-state
+        result]
+       (catch Throwable ex
+         [:fail ex [sym-var [command args raw-args]]])))
 
 (defmethod step-command-runner :postcondition-check
   [_ [[sym-var [command args raw-args]] :as command-list] results next-state prev-state result]
-  (if-let [postcondition (:real/postcondition command)]
-    (try (if (postcondition prev-state next-state args result)
-           [:next-command
-            command-list
-            results
-            next-state]
-           [:fail])
-         (catch Throwable ex
-           [:fail ex [sym-var [command args raw-args]]]))
-    [:next-command
-     command-list
-     results
-     next-state]))
+  (try (if (u/check-postcondition command prev-state next-state args result)
+         [:next-command
+          command-list
+          results
+          next-state]
+         [:fail])
+       (catch Throwable ex
+         [:fail ex [sym-var [command args raw-args]]])))
 
+;; terminal states, so return `nil`
 (defmethod step-command-runner :fail [& _])
 (defmethod step-command-runner :pass [& _])
 
-(defn run-commands [command-list initial-results initial-state]
+(defn run-commands
+  "Run the given list of commands with the provided initial
+  results/state. Returns a realized seq of states from the command
+  runner."
+  [command-list initial-results initial-state]
   (->> [:next-command (cons nil command-list) initial-results initial-state]
        (iterate (partial apply step-command-runner))
-       (take-while (complement nil?))))
+       (take-while (complement nil?))
+       doall))
 
-(defn passed? [command-results]
+(defn passed?
+  "Determine whether a list of command runner states represents a
+  successfully completed execution."
+  [command-results]
   (or (empty? command-results)
       (->> command-results
            (some (comp #{:pass} first))
            boolean)))
 
-(defn extract-exception [command-results]
+(defn extract-exception
+  "Return the exception thrown during the execution of commands for
+  this result list."
+  [command-results]
   (let [failure (->> command-results
                      (filter (comp #{:fail} first))
                      first)]
     (second failure)))
 
-(defn extract-states [command-results]
+(defn extract-states
+  "Return each of the execution states seen during the execution of
+  the commands for this result list."
+  [command-results]
   (->> command-results
        (filter (comp #{:postcondition-check} first))
        (map #(nth % 3))))

@@ -1,13 +1,20 @@
 (ns stateful-check.command-verifier
-  (:require [clojure.walk :as walk]
-            [stateful-check.symbolic-values :refer [SymbolicValue] :as symbolic-values]))
+  (:require [stateful-check
+             [command-utils :as u]
+             [symbolic-values :as symbolic-values :refer [SymbolicValue]]]))
 
-(defmulti step-command-runner (fn [state-name & _] state-name))
+(defmulti ^:private step-command-verifier
+  "Step the command verifier state machine one step. Each state in the
+  state machine is represented by a \"variant\", which is a vector
+  with a key (the state name) and a series of values. What work needs
+  to be done in each state is taken care of by this method's
+  implementations, and they return a new state variant."
+  (fn [state-name & _] state-name))
 
 ;; :next-command, :precondition-check, :next-state
 ;; :pass, :fail
 
-(defmethod step-command-runner :next-command
+(defmethod step-command-verifier :next-command
   [_ command-list results state]
   (if-let [command-list (next command-list)]
     (let [[sym-var [command & args]] (first command-list)]
@@ -18,47 +25,41 @@
        state])
     [:pass]))
 
-(defmethod step-command-runner :precondition-check
+(defmethod step-command-verifier :precondition-check
   [_ [[sym-var [command args]] :as command-list] results state]
-  (if-let [precondition (:model/precondition command)]
-    (try (if (and (every? (fn [arg]
-                            (if (satisfies? SymbolicValue arg)
-                              (symbolic-values/valid? arg results)
-                              true))
-                          args) (precondition state args))
-           [:next-state
-            command-list
-            results
-            state]
-           [:fail])
-         (catch Throwable ex
-           [:fail ex]))
-    [:next-state
-     command-list
-     results
-     state]))
-
-(defmethod step-command-runner :next-state
-  [_ [[sym-var [command args]] :as command-list] results state]
-  (if-let [next-state (or (:real/next-state command)
-                          (:next-state command))]
-    (try [:next-command
+  (try (if (and (every? (fn [arg]
+                          (if (satisfies? SymbolicValue arg)
+                            (symbolic-values/valid? arg results)
+                            true))
+                        args)
+                (u/check-precondition command state args))
+         [:next-state
           command-list
-          (conj results sym-var)
-          (next-state state args sym-var)]
-         (catch Throwable ex
-           [:fail ex]))
-    [:next-command
-     command-list
-     results
-     state]))
+          results
+          state]
+         [:fail])
+       (catch Throwable ex
+         [:fail ex])))
 
-(defmethod step-command-runner :fail [& _])
-(defmethod step-command-runner :pass [& _])
+(defmethod step-command-verifier :next-state
+  [_ [[sym-var [command args]] :as command-list] results state]
+  (try [:next-command
+        command-list
+        (conj results sym-var)
+        (u/model-make-next-state command state args sym-var)]
+       (catch Throwable ex
+         [:fail ex])))
 
-(defn valid? [command-list initial-results initial-state]
+(defmethod step-command-verifier :fail [& _])
+(defmethod step-command-verifier :pass [& _])
+
+(defn valid?
+  "Validate the given list of commands with the provided initial
+  results/state. Returns true if the list of commands is valid, false
+  otherwise."
+  [command-list initial-results initial-state]
   (->> [:next-command (cons nil command-list) initial-results initial-state]
-       (iterate (partial apply step-command-runner))
+       (iterate (partial apply step-command-verifier))
        (take-while (complement nil?))
        last
        (= [:pass])))
