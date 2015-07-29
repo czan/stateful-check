@@ -155,7 +155,7 @@
      (doseq [[type :as step] results]
        (case type
          :postcondition-check
-         (let [[_ [cmd] _ prev-state _ result] step]
+         (let [[_ cmd _ _ _ _ result] step]
            (println "  " (format-command cmd) "\t=>" (pr-str result)))
          :fail
          (if-let [[_ ^Throwable ex cmd] step]

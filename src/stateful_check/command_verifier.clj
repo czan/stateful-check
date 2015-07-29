@@ -16,17 +16,17 @@
 
 (defmethod step-command-verifier :next-command
   [_ command-list results state]
-  (if-let [command-list (next command-list)]
+  (if (seq command-list)
     (let [[sym-var [command & args]] (first command-list)]
       [:precondition-check
-       (cons [sym-var [command args]]
-             (next command-list))
+       [sym-var [command args]]
+       (next command-list)
        results
        state])
     [:pass]))
 
 (defmethod step-command-verifier :precondition-check
-  [_ [[sym-var [command args]] :as command-list] results state]
+  [_ [sym-var [command args] :as current] command-list results state]
   (try (if (and (every? (fn [arg]
                           (if (satisfies? SymbolicValue arg)
                             (symbolic-values/valid? arg results)
@@ -34,6 +34,7 @@
                         args)
                 (u/check-precondition command state args))
          [:next-state
+          current
           command-list
           results
           state]
@@ -42,7 +43,7 @@
          [:fail ex])))
 
 (defmethod step-command-verifier :next-state
-  [_ [[sym-var [command args]] :as command-list] results state]
+  [_ [sym-var [command args]] command-list results state]
   (try [:next-command
         command-list
         (conj results sym-var)
@@ -58,7 +59,7 @@
   results/state. Returns true if the list of commands is valid, false
   otherwise."
   [command-list initial-results initial-state]
-  (->> [:next-command (cons nil command-list) initial-results initial-state]
+  (->> [:next-command command-list initial-results initial-state]
        (iterate (partial apply step-command-verifier))
        (take-while (complement nil?))
        last

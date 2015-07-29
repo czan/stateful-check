@@ -17,37 +17,38 @@
 
 (defmethod step-command-runner :next-command
   [_ command-list results state]
-  (if-let [command-list (next command-list)]
-    (let [[sym-var [command & args]] (first command-list)]
+  (if (seq command-list)
+    (let [[sym-var [command & raw-args]] (first command-list)
+          args (walk/prewalk (fn [value]
+                               (if (satisfies? SymbolicValue value)
+                                 (get-real-value value results)
+                                 value))
+                             raw-args)]
       [:precondition-check
-       (cons [sym-var [command
-                       (walk/prewalk (fn [value]
-                                       (if (satisfies? SymbolicValue value)
-                                         (get-real-value value results)
-                                         value))
-                                     args)
-                       args]]
-             (next command-list))
+       [sym-var [command args raw-args]]
+       (next command-list)
        results
        state])
     [:pass]))
 
 (defmethod step-command-runner :precondition-check
-  [_ [[sym-var [command args]] :as command-list] results state]
+  [_ [sym-var [command args raw-args] :as current] command-list results state]
   (try (if (u/check-precondition command state args)
          [:run-command
+          current
           command-list
           results
           state]
          [:fail])
        (catch Throwable ex
-         [:fail ex])))
+         [:fail ex [sym-var [command args raw-args]]])))
 
 (defmethod step-command-runner :run-command
-  [_ [[sym-var [command args raw-args]] :as command-list] results state]
+  [_ [sym-var [command args raw-args] :as current] command-list results state]
   (try (let [result (u/run-command command args)
              results (assoc results sym-var result)]
          [:next-state
+          current
           command-list
           results
           state
@@ -56,8 +57,9 @@
          [:fail ex [sym-var [command args raw-args]]])))
 
 (defmethod step-command-runner :next-state
-  [_ [[sym-var [command args raw-args]] :as command-list] results previous-state result]
+  [_ [sym-var [command args raw-args] :as current] command-list results previous-state result]
   (try [:postcondition-check
+        current
         command-list
         results
         (u/real-make-next-state command previous-state args result)
@@ -67,7 +69,7 @@
          [:fail ex [sym-var [command args raw-args]]])))
 
 (defmethod step-command-runner :postcondition-check
-  [_ [[sym-var [command args raw-args]] :as command-list] results next-state prev-state result]
+  [_ [sym-var [command args raw-args]] command-list results next-state prev-state result]
   (try (if (u/check-postcondition command prev-state next-state args result)
          [:next-command
           command-list
@@ -86,7 +88,7 @@
   results/state. Returns a realized seq of states from the command
   runner."
   [command-list initial-results initial-state]
-  (->> [:next-command (cons nil command-list) initial-results initial-state]
+  (->> [:next-command command-list initial-results initial-state]
        (iterate (partial apply step-command-runner))
        (take-while (complement nil?))
        doall))
