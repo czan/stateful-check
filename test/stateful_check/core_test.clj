@@ -45,7 +45,7 @@
                     :real/postcondition (fn [state _ args val]
                                           (= val (first (:elements state))))}}
    :model/generate-command (fn [state]
-                             (gen/elements [:push :pop]))
+                             (gen/elements [:push :pop :peek]))
    :initial-state (fn [queue]
                     {:queue queue, :elements []})
    :real/setup #'new-queue})
