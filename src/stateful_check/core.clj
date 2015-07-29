@@ -36,33 +36,35 @@
                            :name command-key)))
                 ((:model/generate-command spec) state)))
 
+;; Don't remove the `size` parameter to this function! It's there so
+;; we can keep track of how "long" the command list is meant to be
+;; without also influencing the "size" of the generated commands. You
+;; can't use gen/sized because that would also influence the size of
+;; the command generators themselves.
 (defn ^:private generate-commands*
   "Returns a list of rose-trees within the monad of gen/gen-pure. "
-  ([spec state] (generate-commands* spec state 0))
-  ([spec state count]
-   (gen/sized
-    (fn [size]
-      (gen/frequency
-       [[1 (gen/gen-pure nil)]
-        [size (gen-do command <- (generate-command-object spec state)
-                      rose <- (if-let [f (:model/args command)]
-                                (f state)
-                                (gen/return []))
-                      :let [args (rose/root rose)]
-                      (if ((or (:model/precondition command)
-                               (constantly true))
-                           state args)
-                        (gen-do :let [result (->RootVar count)
-                                      next-state (or (:model/next-state command)
-                                                     (:next-state command)
-                                                     (constantly state))]
-                                roses <- (gen/resize (dec size)
-                                                     (generate-commands* spec (next-state state args result) (inc count)))
-                                (gen/gen-pure (cons (rose/fmap (fn [args]
-                                                                 [result (cons command args)])
-                                                               rose)
-                                                    roses)))
-                        (generate-commands* spec state count)))]])))))
+  ([spec state size] (generate-commands* spec state size 0))
+  ([spec state size count]
+   (gen/frequency
+    [[1 (gen/gen-pure nil)]
+     [size (gen-do command <- (generate-command-object spec state)
+                   rose <- (if-let [f (:model/args command)]
+                             (f state)
+                             (gen/return []))
+                   :let [args (rose/root rose)]
+                   (if ((or (:model/precondition command)
+                            (constantly true))
+                        state args)
+                     (gen-do :let [result (->RootVar count)
+                                   next-state (or (:model/next-state command)
+                                                  (:next-state command)
+                                                  (constantly state))]
+                             roses <- (generate-commands* spec (next-state state args result) (dec size) (inc count))
+                             (gen/gen-pure (cons (rose/fmap (fn [args]
+                                                              [result (cons command args)])
+                                                            rose)
+                                                 roses)))
+                     (generate-commands* spec state count)))]])))
 
 (defn ^:private concat-command-roses
   "Take a seq of rose trees and concatenate them. Create a vector from
@@ -77,7 +79,7 @@
 (defn ^:private generate-commands
   "Generate a seq of commands from a spec and an initial state."
   [spec state]
-  (gen/gen-bind (generate-commands* spec state)
+  (gen/gen-bind (gen/sized #(generate-commands* spec state %))
                 (fn [roses]
                   (gen/gen-pure (concat-command-roses roses)))))
 
