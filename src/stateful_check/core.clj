@@ -137,25 +137,32 @@
             ex (throw ex)
             :else false))))
 
+(defn ^:private format-command [[sym-var [{name :name} _ args]]]
+  (str (pr-str sym-var) " = " (pr-str (cons name args))))
+
 (defn ^:private print-command-results
   "Print out the results of a `run-commands` call. No commands are
   actually run, as the argument to this function contains the results
   for each individual command."
-  [results]
-  (try
-    (doseq [[type :as step] results]
-      (case type
-        :postcondition-check
-        (let [[_ [[sym-var [{name :name} _ args]]] _ prev-state _ result] step]
-          (println "  " sym-var "=" (cons name args) "\t=>" result))
-        :fail
-        (if-let [ex (second step)]
-          (println "  " ex)
-          (println "   !! postcondition violation"))
-        nil))
-    (catch Throwable ex
-      (println "   !! exception thrown")
-      (.printStackTrace ex *out*))))
+  ([results] (print-command-results results false))
+  ([results stacktraces?]
+   (try
+     (doseq [[type :as step] results]
+       (case type
+         :postcondition-check
+         (let [[_ [cmd] _ prev-state _ result] step]
+           (println "  " (format-command cmd) "\t=>" (pr-str result)))
+         :fail
+         (if-let [[_ ex cmd] step]
+           (do (println "  " (format-command cmd) "\t=!!>" (.getMessage ex))
+               (if stacktraces?
+                 (.printStackTrace ex *out*)))
+           (println "   !! postcondition violation"))
+         nil))
+     (catch Throwable ex
+       (println "   !! exception thrown" (.getMessage ex))
+       (if stacktraces?
+         (.printStackTrace ex *out*))))))
 
 (defn print-test-results
   "Print the results of a test.check test in a more helpful form (each

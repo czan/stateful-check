@@ -41,7 +41,7 @@
      state]))
 
 (defmethod step-command-runner :run-command
-  [_ [[sym-var [command args]] :as command-list] results state]
+  [_ [[sym-var [command args raw-args]] :as command-list] results state]
   (if-let [real-command (:real/command command)] 
     (try (let [result (apply real-command args)
                results (assoc results sym-var result)]
@@ -51,11 +51,11 @@
             state
             result])
          (catch Throwable ex
-           [:fail ex]))
+           [:fail ex [sym-var [command args raw-args]]]))
     [:fail "No :real/command function!"]))
 
 (defmethod step-command-runner :next-state
-  [_ [[sym-var [command args]] :as command-list] results previous-state result]
+  [_ [[sym-var [command args raw-args]] :as command-list] results previous-state result]
   (if-let [next-state (or (:real/next-state command)
                           (:next-state command))]
     (try [:postcondition-check
@@ -65,7 +65,7 @@
           previous-state
           result]
          (catch Throwable ex
-           [:fail ex]))
+           [:fail ex [sym-var [command args raw-args]]]))
     [:postcondition-check
      command-list
      results
@@ -74,7 +74,7 @@
      result]))
 
 (defmethod step-command-runner :postcondition-check
-  [_ [[sym-var [command args]] :as command-list] results next-state prev-state result]
+  [_ [[sym-var [command args raw-args]] :as command-list] results next-state prev-state result]
   (if-let [postcondition (:real/postcondition command)]
     (try (if (postcondition prev-state next-state args result)
            [:next-command
@@ -83,7 +83,7 @@
             next-state]
            [:fail])
          (catch Throwable ex
-           [:fail ex]))
+           [:fail ex [sym-var [command args raw-args]]]))
     [:next-command
      command-list
      results
