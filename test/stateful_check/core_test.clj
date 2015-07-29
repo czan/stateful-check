@@ -1,7 +1,6 @@
 (ns stateful-check.core-test
   (:require [clojure.test :refer :all]
             [clojure.test.check :refer [quick-check]]
-            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.set :as set]
             [stateful-check.core :refer :all]))
@@ -50,8 +49,8 @@
                     {:queue queue, :elements []})
    :real/setup #'new-queue})
 
-(defspec prop-queue
-  (reality-matches-model queue-spec))
+(deftest queue-test
+  (is (specification-correct? queue-spec{:num-tests 100, :max-size 200})))
 
 
 (def global-state (atom #{}))
@@ -93,8 +92,8 @@
                     #{})
    :real/setup #(reset! global-state #{})})
 
-(defspec prop-atomic-set
-  (reality-matches-model atomic-set-spec))
+(deftest atomic-set-test
+  (is (specification-correct? atomic-set-spec)))
 
 
 
@@ -131,8 +130,8 @@
                                                             [:alloc-ticker]
                                                             [:alloc-ticker :zero :take-ticket])))})
 
-(defspec prop-ticker
-  (reality-matches-model ticker-spec))
+(deftest ticker-test
+  (is (specification-correct? ticker-spec)))
 
 
 
@@ -245,8 +244,8 @@
                        :initial-state (fn [set] [[set #{}]])
                        :real/setup #(java.util.HashSet.)}))
 
-(defspec prop-small-set
-  (reality-matches-model small-set-spec))
+(deftest small-set-test
+  (is (specification-correct? small-set-spec)))
 
 (def full-set-spec (let [command-map {:new new-set-command
                                       :add add-set-command
@@ -263,5 +262,5 @@
                                                                 [:new]
                                                                 (keys command-map))))}))
 
-(defspec prop-full-set
-  (reality-matches-model full-set-spec))
+(deftest full-set-test
+  (is (specification-correct? full-set-spec)))

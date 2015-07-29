@@ -1,5 +1,7 @@
 (ns stateful-check.core
-  (:require [clojure.test.check
+  (:require [clojure.test :as t]
+            [clojure.test.check :refer [quick-check]]
+            [clojure.test.check
              [generators :as gen]
              [properties :refer [for-all]]
              [rose-tree :as rose]]
@@ -8,7 +10,7 @@
              [command-utils :as u]
              [command-verifier :as v]
              [gen :refer [gen-do]]
-             [symbolic-values :as symbolic-values :refer [->RootVar SymbolicValue]]]))
+             [symbolic-values :as symbolic-values :refer [->RootVar]]]))
 
 (defmacro ^:private assert-val
   ([val]
@@ -131,7 +133,7 @@
        (generate-commands spec)
        (gen/such-that (partial valid-commands? spec))))
 
-(defn reality-matches-model
+(defn ^{:deprecated "0.3.0"} reality-matches-model
   "Create a property which checks a given stateful-check
   specification."
   [spec]
@@ -178,7 +180,33 @@
   live system."
   [spec results]
   (when-not (true? (:result results))
-    (println "\nFailing test case:")
+    (println "Failing test case:")
     (print-command-results (run-commands spec (-> results :fail first)))
     (println "Shrunk:")
-    (print-command-results (run-commands spec (-> results :shrunk :smallest first)))))
+    (print-command-results (run-commands spec (-> results :shrunk :smallest first)))
+    (println "Seed: " (:seed results))))
+
+(def ^{:arglists '([specification] [specification {:keys [num-tests max-size seed]}])}
+  specification-correct?
+  "This value is a dummy, just so you're aware it exists. It should
+  only be used in an `is` form: (is (specification-true? ...))" nil)
+
+(defmethod t/assert-expr 'specification-correct?
+  [msg [_ spec {:keys [num-tests max-size seed]}]]
+  `(let [spec# ~spec
+         results# (quick-check ~(or num-tests 100)
+                               (reality-matches-model spec#)
+                               :seed ~seed
+                               :max-size ~(or max-size 200))]
+     (if (true? (:result results#))
+       (t/do-report {:type :pass,
+                     :message ~msg,
+                     :expected :pass,
+                     :actual :fail})
+       (t/do-report {:type :fail,
+                     :message (str (if-let [msg# ~msg]
+                                     (str msg# "\n"))
+                                   (with-out-str (print-test-results spec# results#))),
+                     :expected :pass,
+                     :actual :fail}))
+     (:result results#)))
