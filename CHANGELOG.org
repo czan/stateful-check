@@ -20,7 +20,11 @@
 - make the command generator use the same size for all commands
 
 - rewrite the command verifier/runner to make it a whole lot cleaner
-  (including breaking out two namespaces)
+  (including breaking out extra namespaces)
+
+- upgrade to test.check 0.7.0
+
+- tweak the format of ~print-test-results~
 
 * 0.2.0
 
