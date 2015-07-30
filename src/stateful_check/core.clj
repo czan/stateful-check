@@ -178,15 +178,15 @@
            (if-let [ex ^Throwable ex]
              (let [show-command? (and cmd (= :run-command pre-type))]
                (if show-command?
-                 (println "  " (format-command cmd) "\t=!!>" (.getMessage ex)))
+                 (println "  " (format-command cmd) "\t=!!>" ex))
                (println "Exception thrown while" location
-                        (if-not show-command? (str "- " (.getMessage ex))))
+                        (if show-command? "" (str "- " ex)))
                (if stacktraces?
                  (.printStackTrace ex (java.io.PrintWriter. ^java.io.Writer *out*))))
              (println "Error while" location)))
          nil))
      (catch Throwable ex
-       (println "Unexpected exception thrown in test runner -" (.getMessage ex))
+       (println "Unexpected exception thrown in test runner -" ex)
        (.printStackTrace ex (java.io.PrintWriter. ^java.io.Writer *out*))))))
 
 (defn print-test-results
