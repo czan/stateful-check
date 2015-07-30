@@ -69,7 +69,7 @@
                                                               [result (cons command args)])
                                                             args-rose)
                                                  roses)))
-                     (generate-commands* spec state count)))]])))
+                     (generate-commands* spec state size count)))]])))
 
 (defn ^:private concat-command-roses
   "Take a seq of rose trees and concatenate them. Create a vector from
