@@ -3,7 +3,7 @@
              [command-utils :as u]
              [symbolic-values :as symbolic-values :refer [SymbolicValue]]]))
 
-(defmulti ^:private step-command-verifier
+(defmulti step-command-verifier
   "Step the command verifier state machine one step. Each state in the
   state machine is represented by a \"variant\", which is a vector
   with a key (the state name) and a series of values. What work needs

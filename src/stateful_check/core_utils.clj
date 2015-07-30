@@ -10,9 +10,9 @@
              [generator-utils :refer [gen-do]]
              [symbolic-values :refer [->RootVar]]]))
 
-(def ^:private setup-name "setup")
+(def setup-name "setup")
 
-(defmacro ^:private assert-val
+(defmacro assert-val
   ([val]
    (when *assert*
      `(let [val# ~val]
@@ -26,7 +26,7 @@
           val#
           (throw (new AssertionError (str "Assert failed: " ~message))))))))
 
-(defn ^:private generate-command-object
+(defn generate-command-object
   "Generate the object for a command. This means first generating a
   command name using the spec's :model/generate-command function, then
   returning the full command object matching the generated command
@@ -45,7 +45,7 @@
 ;; without also influencing the "size" of the generated commands. You
 ;; can't use gen/sized because that would also influence the size of
 ;; the command generators themselves.
-(defn ^:private generate-commands*
+(defn generate-commands*
   "Returns a list of rose-trees within the monad of gen/gen-pure. "
   ([spec state size] (generate-commands* spec state size 0))
   ([spec state size count]
@@ -66,7 +66,7 @@
                                                  roses)))
                      (generate-commands* spec state size count)))]])))
 
-(defn ^:private concat-command-roses
+(defn concat-command-roses
   "Take a seq of rose trees and concatenate them. Create a vector from
   the roots along with a rose tree consisting of shrinking each
   element in turn."
@@ -76,14 +76,14 @@
      (map concat-command-roses (rose/remove (vec roses)))]
     [[] []]))
 
-(defn ^:private generate-commands
+(defn generate-commands
   "Generate a seq of commands from a spec and an initial state."
   [spec state]
   (gen/gen-bind (gen/sized #(generate-commands* spec state %))
                 (fn [roses]
                   (gen/gen-pure (concat-command-roses roses)))))
 
-(defn ^:private run-commands
+(defn run-commands
   "Run a seq of commands against a live system."
   [spec command-list]
   (let [state-fn (or (:real/initial-state spec)
@@ -101,7 +101,7 @@
       (f (last (r/extract-states command-results))))
     command-results))
 
-(defn ^:private valid-commands?
+(defn valid-commands?
   "Verify whether a given list of commands is valid (preconditions all
   return true, symbolic vars are all valid, etc.)."
   [spec command-list]
@@ -117,7 +117,7 @@
                   (initial-state-fn setup-var)
                   (initial-state-fn))))))
 
-(defn ^:private generate-valid-commands
+(defn generate-valid-commands
   "Generate a set of valid commands from a specification"
   [spec]
   (->> (let [initial-state-fn (or (:model/initial-state spec)
@@ -137,10 +137,10 @@
             ex (throw ex)
             :else false))))
 
-(defn ^:private format-command [[sym-var [{name :name} _ args] :as cmd]]
+(defn format-command [[sym-var [{name :name} _ args] :as cmd]]
   (str (pr-str sym-var) " = " (pr-str (cons name args))))
 
-(defn ^:private print-command-results
+(defn print-command-results
   "Print out the results of a `run-commands` call. No commands are
   actually run, as the argument to this function contains the results
   for each individual command."
