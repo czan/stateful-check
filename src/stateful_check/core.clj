@@ -133,16 +133,19 @@
        (generate-commands spec)
        (gen/such-that (partial valid-commands? spec))))
 
-(defn ^{:deprecated "0.3.0"} reality-matches-model
-  "Create a property which checks a given stateful-check
-  specification."
-  [spec]
+(defn ^:private spec->property [spec]
   (for-all [commands (generate-valid-commands spec)]
     (let [command-results (run-commands spec commands)
           ex (r/extract-exception command-results)]
       (cond (r/passed? command-results) true
             ex (throw ex)
             :else false))))
+
+(defn ^{:deprecated "0.3.0"} reality-matches-model
+  "Create a property which checks a given stateful-check
+  specification."
+  [spec]
+  (spec->property spec))
 
 (defn ^:private format-command [[sym-var [{name :name} _ args] :as cmd]]
   (str (pr-str sym-var) " = " (pr-str (cons name args))))
@@ -212,14 +215,14 @@
   [msg [_ spec {:keys [num-tests max-size seed print-first-case? print-stacktraces?]}]]
   `(let [spec# ~spec
          results# (quick-check ~(or num-tests 100)
-                               (reality-matches-model spec#)
+                               (#'spec->property spec#)
                                :seed ~seed
                                :max-size ~(or max-size 200))]
      (if (true? (:result results#))
        (t/do-report {:type :pass,
                      :message ~msg,
                      :expected :pass,
-                     :actual :fail})
+                     :actual :pass})
        (t/do-report {:type :fail,
                      :message (str (if-let [msg# ~msg]
                                      (str msg# "\n"))
