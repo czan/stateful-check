@@ -9,9 +9,10 @@ we'll need later.
 
 #+BEGIN_SRC clojure
   (ns stateful-check.example
-    (:require [clojure.test.check.generators :as gen]
+    (:require [clojure.test :refer [is]]
+              [clojure.test.check.generators :as gen]
               [clojure.test.check :refer [quick-check]]
-              [stateful-check.core :refer [reality-matches-model print-test-results]]))
+              [stateful-check.core :refer [specification-correct?]]))
 #+END_SRC
 
 ** Defining
@@ -150,26 +151,20 @@ abstract state to a generator which will generate a new command.
 Let's see what happens when we run this specification:
 
 #+BEGIN_SRC clojure :results replace output
-  (println (quick-check 100 (reality-matches-model queue-spec) :seed 1417059242645))
-  ;; {:result false, :seed 1417059242645, :failing-size 5, :num-tests 6, :fail [[[#<0> ({:name :new, :next-state #<example$fn__17990 stateful_check.example$fn__17990@2c76428e>, :real/command #'stateful-check.example/new-queue})] [#<1> ({:name :push, :model/args #<example$fn__17993 stateful_check.example$fn__17993@729564d1>, :model/precondition #<example$fn__17995 stateful_check.example$fn__17995@4750afe6>, :real/command #'stateful-check.example/push-queue, :next-state #<example$fn__17998 stateful_check.example$fn__17998@52785ee6>} #<0> 4)] [#<2> ({:name :push, :model/args #<example$fn__17993 stateful_check.example$fn__17993@729564d1>, :model/precondition #<example$fn__17995 stateful_check.example$fn__17995@4750afe6>, :real/command #'stateful-check.example/push-queue, :next-state #<example$fn__17998 stateful_check.example$fn__17998@52785ee6>} #<0> 2)] [#<3> ({:name :pop, :model/args #<example$fn__18002 stateful_check.example$fn__18002@2e246aba>, :model/precondition #<example$fn__18004 stateful_check.example$fn__18004@25b7c722>, :real/command #'stateful-check.example/pop-queue, :next-state #<example$fn__18006 stateful_check.example$fn__18006@a1a7cb5>, :real/postcondition #<example$fn__18008 stateful_check.example$fn__18008@65535b1c>} #<0>)]]], :shrunk {:total-nodes-visited 4, :depth 2, :result false, :smallest [[[#<0> ({:name :new, :next-state #<example$fn__17990 stateful_check.example$fn__17990@2c76428e>, :real/command #'stateful-check.example/new-queue})] [#<2> ({:name :push, :model/args #<example$fn__17993 stateful_check.example$fn__17993@729564d1>, :model/precondition #<example$fn__17995 stateful_check.example$fn__17995@4750afe6>, :real/command #'stateful-check.example/push-queue, :next-state #<example$fn__17998 stateful_check.example$fn__17998@52785ee6>} #<0> 0)] [#<3> ({:name :pop, :model/args #<example$fn__18002 stateful_check.example$fn__18002@2e246aba>, :model/precondition #<example$fn__18004 stateful_check.example$fn__18004@25b7c722>, :real/command #'stateful-check.example/pop-queue, :next-state #<example$fn__18006 stateful_check.example$fn__18006@a1a7cb5>, :real/postcondition #<example$fn__18008 stateful_check.example$fn__18008@65535b1c>} #<0>)]]]}}
-#+END_SRC
-
-Whoops! It failed! We must have a bug somewhere. Let's see if we can see that output in a nicer form.
-
-#+BEGIN_SRC clojure :results replace output
-  (print-test-results queue-spec (quick-check 100 (reality-matches-model queue-spec) :seed 1417059242645))
-  ;; Failing test case:
-  ;;    #<0> = (:new)     => #<Atom@57ccea5a: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-  ;;    #<1> = (:push #<0> 4)     => nil
-  ;;    #<2> = (:push #<0> 2)     => nil
-  ;;    #<3> = (:pop #<0>)        => #<PersistentQueue clojure.lang.PersistentQueue@21>
-  ;;    !! postcondition violation
-  ;; Shrunk:
-  ;;    #<0> = (:new)     => #<Atom@40521fb4: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+  (is (specification-correct? queue-spec {:seed 1417059242645}))
+  ;; 
+  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init1067629020891437332.clj:1)
+  ;;    #<0> = (:new)     => #<Atom@53df198e: #<PersistentQueue clojure.lang.PersistentQueue@1>>
   ;;    #<2> = (:push #<0> 0)     => nil
   ;;    #<3> = (:pop #<0>)        => #<PersistentQueue clojure.lang.PersistentQueue@1>
-  ;;    !! postcondition violation
+  ;; Error while checking postcondition
+  ;; Seed:  1417059242645
+  ;; 
+  ;; expected: :pass
+  ;;   actual: :fail
 #+END_SRC
+
+Whoops! It failed! We must have a bug somewhere.
 
 Okay, we seem to have an error when we create a queue, then push a
 value into it, then pop the value back out. So it could be a problem
@@ -191,12 +186,10 @@ So, let's fix our error.
 Now let's try running our tests again.
 
 #+BEGIN_SRC clojure :results replace output
-  (println (quick-check 100 (reality-matches-model queue-spec)))
-  ;; {:result true, :num-tests 100, :seed 1438133300288}
+  (is (specification-correct? queue-spec {:seed 1417059242645}))
 #+END_SRC
 
-Success!
-
+No output? That means the test passed! Success!
 
 # Local Variables:
 # org-confirm-babel-evaluate: nil
