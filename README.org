@@ -15,6 +15,22 @@ A [[http://clojure.org][Clojure]] library designed to help with testing stateful
 To see an example of ~stateful-check~ to test a simple system, see the
 [[file:doc/queue.org][queue example in docs/]].
 
+Of particular note is how a test is run and what happens if (or
+really, when) it fails:
+#+BEGIN_SRC clojure
+  (is (specification-correct? queue-spec {:seed 1417059242645}))
+  ;; 
+  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init1067629020891437332.clj:1)
+  ;;    #<0> = (:new)     => #<Atom@53df198e: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+  ;;    #<2> = (:push #<0> 0)     => nil
+  ;;    #<3> = (:pop #<0>)        => #<PersistentQueue clojure.lang.PersistentQueue@1>
+  ;; Error while checking postcondition
+  ;; Seed:  1417059242645
+  ;; 
+  ;; expected: :pass
+  ;;   actual: :fail
+#+END_SRC
+
 * Specifications
 
 When reading a ~stateful-check~ specification there are two main types
