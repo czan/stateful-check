@@ -52,3 +52,12 @@
   (if-let [postcondition (:real/postcondition command)]
     (postcondition prev-state next-state args result)
     true))
+
+(defn check-spec-postcondition
+  "Check the postcondition for the specification, taking into account
+  whether or not the specification declares a :real/postcondition
+  function."
+  [spec state]
+  (if-let [postcondition (:real/postcondition spec)]
+    (postcondition state)
+    true))

@@ -15,13 +15,13 @@
   (let [val (peek @queue)]
     (swap! queue pop)
     val))
+(defn count-queue [queue]
+  (count @queue))
 
 (def queue-spec
   {:commands {:push {:model/args (fn [state]
                                    (gen/tuple (gen/return (:queue state))
                                               gen/nat))
-                     :model/precondition (fn [state _]
-                                           state)
                      :real/command #'push-queue
                      :next-state (fn [state [_ val] _]
                                    (assoc state
@@ -42,15 +42,19 @@
                                   (assoc state
                                          :elements (vec (next (:elements state)))))
                     :real/postcondition (fn [state _ args val]
-                                          (= val (first (:elements state))))}}
+                                          (= val (first (:elements state))))}
+              :count {:model/args (fn [state] (gen/return [(:queue state)]))
+                      :real/command #'count-queue
+                      :real/postcondition (fn [state _ _ val]
+                                            (= val (count (:elements state))))}}
    :model/generate-command (fn [state]
-                             (gen/elements [:push :pop :peek]))
+                             (gen/elements [:push :pop :peek :count]))
    :initial-state (fn [queue]
                     {:queue queue, :elements []})
    :real/setup #'new-queue})
 
 (deftest queue-test
-  (is (specification-correct? queue-spec{:num-tests 100, :max-size 200})))
+  (is (specification-correct? queue-spec {:num-tests 100, :max-size 200})))
 
 
 (def global-state (atom #{}))

@@ -101,7 +101,7 @@
         state (if setup-fn
                 (state-fn setup-value)
                 (state-fn))
-        command-results (r/run-commands command-list results state)]
+        command-results (r/run-commands command-list results state spec)]
     (if-let [f (:real/cleanup spec)]
       (f (last (r/extract-states command-results))))
     command-results))
@@ -144,7 +144,7 @@
             ex (throw ex)
             :else false))))
 
-(defn ^:private format-command [[sym-var [{name :name} _ args]]]
+(defn ^:private format-command [[sym-var [{name :name} _ args] :as cmd]]
   (str (pr-str sym-var) " = " (pr-str (cons name args))))
 
 (defn ^:private print-command-results
@@ -154,22 +154,37 @@
   ([results] (print-command-results results false))
   ([results stacktraces?]
    (try
-     (doseq [[type :as step] results]
+     (doseq [[pre [type :as step]] (partition 2 1 results)]
+       ;; get each state, plus the state before it (we can ignore the
+       ;; first state because it's definitely not a terminal state
+       ;; (:pass/:fail) and hence must have a following state which we
+       ;; will see
        (case type
          :postcondition-check
          (let [[_ cmd _ _ _ _ result] step]
            (println "  " (format-command cmd) "\t=>" (pr-str result)))
          :fail
-         (if-let [[_ ^Throwable ex cmd] step]
-           (do (println "  " (format-command cmd) "\t=!!>" (.getMessage ex))
+         (let [[_ ex] step
+               [pre-type cmd] pre
+               location (case pre-type
+                          :precondition-check "checking precondition"
+                          :run-command "executing command"
+                          :postcondition-check "checking postcondition"
+                          :next-state "making next state"
+                          :next-command "checking spec postcondition")]
+           (if-let [ex ^Throwable ex]
+             (let [show-command? (and cmd (= :run-command pre-type))]
+               (if show-command?
+                 (println "  " (format-command cmd) "\t=!!>" (.getMessage ex)))
+               (println "Exception thrown while" location
+                        (if-not show-command? (str "- " (.getMessage ex))))
                (if stacktraces?
-                 (.printStackTrace ex ^java.io.PrintWriter *out*)))
-           (println "   !! postcondition violation"))
+                 (.printStackTrace ex (java.io.PrintWriter. ^java.io.Writer *out*))))
+             (println "Error while" location)))
          nil))
      (catch Throwable ex
-       (println "   !! exception thrown" (.getMessage ex))
-       (if stacktraces?
-         (.printStackTrace ex ^java.io.PrintWriter *out*))))))
+       (println "Unexpected exception thrown in test runner -" (.getMessage ex))
+       (.printStackTrace ex (java.io.PrintWriter. ^java.io.Writer *out*))))))
 
 (defn print-test-results
   "Print the results of a test.check test in a more helpful form (each
@@ -178,21 +193,23 @@
   This function will re-run both the failing test case and the shrunk
   failing test. This means that the commands will be run against the
   live system."
-  [spec results]
+  [spec results {:keys [first-case? stacktraces?]}]
   (when-not (true? (:result results))
-    (println "Failing test case:")
-    (print-command-results (run-commands spec (-> results :fail first)))
-    (println "Shrunk:")
-    (print-command-results (run-commands spec (-> results :shrunk :smallest first)))
+    (when first-case?
+      (println "First failing test case:")
+      (print-command-results (run-commands spec (-> results :fail first)) stacktraces?)
+      (println "Shrunk:"))
+    (print-command-results (run-commands spec (-> results :shrunk :smallest first)) stacktraces?)
     (println "Seed: " (:seed results))))
 
-(def ^{:arglists '([specification] [specification {:keys [num-tests max-size seed]}])}
+(def ^{:arglists '([specification]
+                   [specification {:keys [num-tests max-size seed print-first-case? print-stacktraces?]}])}
   specification-correct?
   "This value is a dummy, just so you're aware it exists. It should
   only be used in an `is` form: (is (specification-true? ...))" nil)
 
 (defmethod t/assert-expr 'specification-correct?
-  [msg [_ spec {:keys [num-tests max-size seed]}]]
+  [msg [_ spec {:keys [num-tests max-size seed print-first-case? print-stacktraces?]}]]
   `(let [spec# ~spec
          results# (quick-check ~(or num-tests 100)
                                (reality-matches-model spec#)
@@ -206,7 +223,9 @@
        (t/do-report {:type :fail,
                      :message (str (if-let [msg# ~msg]
                                      (str msg# "\n"))
-                                   (with-out-str (print-test-results spec# results#))),
+                                   (with-out-str (print-test-results spec# results#
+                                                                     {:first-case? ~print-first-case?,
+                                                                      :stacktraces? ~print-stacktraces?}))),
                      :expected :pass,
                      :actual :fail}))
      (:result results#)))
