@@ -9,7 +9,8 @@
   [spec]
   (utils/spec->property spec))
 
-(defn ^{:deprecated "0.3.0"} print-test-results
+(defn ^{:deprecated "0.3.0", :doc (:doc (meta #'utils/print-test-results))}
+  print-test-results
   [spec results {:keys [first-case? stacktraces?]}]
   (utils/print-test-results spec results {:first-case first-case?, :stacktraces? stacktraces?}))
 
