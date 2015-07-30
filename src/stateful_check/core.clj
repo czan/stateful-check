@@ -9,7 +9,7 @@
              [command-runner :as r]
              [command-utils :as u]
              [command-verifier :as v]
-             [gen :refer [gen-do]]
+             [generator-utils :refer [gen-do]]
              [symbolic-values :as symbolic-values :refer [->RootVar]]]))
 
 (defmacro ^:private assert-val

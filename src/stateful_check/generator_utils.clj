@@ -1,4 +1,4 @@
-(ns stateful-check.gen
+(ns stateful-check.generator-utils
   (:require [clojure.test.check.generators :as gen]))
 
 (defn is-let? [forms]
