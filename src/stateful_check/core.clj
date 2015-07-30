@@ -206,7 +206,7 @@
                    [specification {:keys [num-tests max-size seed print-first-case? print-stacktraces?]}])}
   specification-correct?
   "This value is a dummy, just so you're aware it exists. It should
-  only be used in an `is` form: (is (specification-true? ...))" nil)
+  only be used in an `is` form: (is (specification-correct? ...))" nil)
 
 (defmethod t/assert-expr 'specification-correct?
   [msg [_ spec {:keys [num-tests max-size seed print-first-case? print-stacktraces?]}]]
