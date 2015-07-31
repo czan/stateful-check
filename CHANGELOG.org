@@ -1,10 +1,10 @@
 * 0.3.0
 
-- *breaking* add ~next-state~ to the ~:real/postcondition~ function
-  arguments in commands
+- *Breaking!* Add ~next-state~ to the ~:real/postcondition~ function
+  arguments in commands.
 
   Any command preconditions will need to be modified to take an extra
-  argument
+  argument.
   #+BEGIN_SRC clojure
     (fn [state args result]
       arbitrary-logic-for-postcondition)
@@ -13,28 +13,42 @@
       arbitrary-logic-for-postcondition)
   #+END_SRC
 
-- *breaking* change `reality-matches-model?` to be called
-  `reality-matches-model` (it's not a predicate, so it shouldn't have
-  a `?` in its name)
+- *Breaking!* Change ~reality-matches-model?~ to be called
+  ~reality-matches-model~ (it's not a predicate, so it shouldn't have
+  a ~?~ in its name). This function is now deprecated, though, in
+  favour of using ~deftest~ with our custom ~is~ form (see the next point).
 
-- make the command generator use the same size for all commands
+- Add support for a custom test.check ~is~ form:
+  #+BEGIN_SRC clojure
+    (is (specification-correct? some-spec))
+    (is (specification-correct? some-spec {:num-tests 1000, :max-size 10, :seed 123456789}))
+  #+END_SRC
+
+- Make the command generator use the same size for all commands.
+
+- Rewrite the command verifier/runner to make it a whole lot cleaner
+  (including breaking out extra namespaces).
+
+- Upgrade to test.check 0.7.0.
+
+- Tweak the format of ~print-test-results~.
 
 * 0.2.0
 
-- add namespaces to some keys which didn't have them before
+- Add namespaces to some keys which didn't have them before
   - ~:generate-command~ is now ~:model/generate-command~
   - ~:setup~ is now ~:real/setup~
   - ~:cleanup~ is now ~:real/cleanup~
 
-- add some more keys to the top-level spec object:
+- Add some more keys to the top-level spec object:
   - ~:model/initial-state~, ~:real/initial-state~, ~:initial-state~
     for setting the initial state of the system
   - ~:real/postcondition~ on the top-level spec, to check for global
     invariants
 
-- make symbolic values implement ~ILookup~ (to work with ~get~)
+- Make symbolic values implement ~ILookup~ (to work with ~get~)
 
-- clean up exception handling during command runs
+- Clean up exception handling during command runs
 
 * 0.1.0
 

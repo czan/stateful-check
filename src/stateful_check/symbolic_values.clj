@@ -47,7 +47,7 @@
   (equals [this other]
     (and (instance? RootVar other)
          (= (.-name this)
-            (.-name other))))
+            (.-name ^RootVar other))))
   (hashCode [this]
     (.hashCode name))
 

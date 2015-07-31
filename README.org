@@ -12,200 +12,24 @@ A [[http://clojure.org][Clojure]] library designed to help with testing stateful
 
 * Example
 
-As an example, let's test a mutable queue (a ~PersistentQueue~ in an
-atom). Our queue will have three operations: ~new~, ~push~ and
-~pop~. Before we get started, though, let's import some things which
-we'll need later.
+To see an example of ~stateful-check~ to test a simple system, see the
+[[file:doc/queue.org][queue example in docs/]].
 
-#+BEGIN_SRC clojure :results silent :exports code
-  (require '[clojure.test.check.generators :as gen]
-           '[clojure.test.check :refer [quick-check]]
-           '[stateful-check.core :refer [reality-matches-model? print-test-results]])
-
+Of particular note is how a test is run and what happens if (or
+really, when) it fails:
+#+BEGIN_SRC clojure
+  (is (specification-correct? queue-spec {:seed 1417059242645}))
+  ;; 
+  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init1067629020891437332.clj:1)
+  ;;    #<0> = (:new)     => #<Atom@53df198e: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+  ;;    #<2> = (:push #<0> 0)     => nil
+  ;;    #<3> = (:pop #<0>)        => #<PersistentQueue clojure.lang.PersistentQueue@1>
+  ;; Error while checking postcondition
+  ;; Seed:  1417059242645
+  ;; 
+  ;; expected: :pass
+  ;;   actual: :fail
 #+END_SRC
-
-** Defining
-
-*** ~new-queue~
-
-The implementation for the ~new-queue~ function is quite simple:
-
-#+BEGIN_SRC clojure :results silent :exports code
-  (defn new-queue []
-    (atom clojure.lang.PersistentQueue/EMPTY))
-#+END_SRC
-
-In order to use it with ~stateful-check~ we also need to model its
-abstract semantics:
-
-#+BEGIN_SRC clojure :results silent :exports code
-  (def new-queue-specification
-    {:next-state (fn [state _ result]
-                   {:queue result, :elements []})
-     :real/command #'new-queue})
-#+END_SRC
-
-This specification contains two elements:
-
-- ~:real/command~ is a function which will be called when running the
-  test. It performs an action on the real state, and is the thing the
-  specification is modelling.
-
-- ~:next-state~ denotes the effect that running this command will have
-  on the abstract state. In this case running the ~new-queue~ function
-  will initialise the abstract state. ~:element~ is set to the empty
-  vector because our queue starts off empty. ~:queue~ is set to the
-  result of calling the ~:real/command~ function to store it for later
-  operations.
-
-In this instance the ~:next-state~ function is called when performing
-both the abstract and the real evaluation. This means that ~:result~
-could be an abstract value, and thus cannot be operated on directly in
-~:next-state~. When an abstract value is used as an argument to a
-later command, however, it will be replaced by its corresponding
-concrete value (as can be seen below, where ~:queue~ is used as an
-argument to ~push-queue~ and ~pop-queue~).
-
-*** ~push-queue~
-
-Similarly, ~push-queue~ is fairly simple to implement.
-
-#+BEGIN_SRC clojure :results silent :exports code
-  (defn push-queue [queue val]
-    (swap! queue conj val)
-    nil)
-#+END_SRC
-
-Then its abstract semantics:
-
-#+BEGIN_SRC clojure :results silent :exports code
-  (def push-queue-specification
-    {:model/args (fn [state]
-                   (gen/tuple (gen/return (:queue state))
-                              gen/nat))
-     :model/precondition (fn [state _] (:queue state))
-     :real/command #'push-queue
-     :next-state (fn [state [_ val] _]
-                   (assoc state
-                     :elements (conj (:elements state) val)))})
-#+END_SRC
-
-This specification has two additional elements over
-~new-queue-specification~:
-
-- ~:model/args~ specifies a function which will provide a generator to
-  generate arguments for ~push-queue~. In this case we will attempt to
-  push a natural number (~gen/nat~) into the queue under test (which
-  we have stored in ~(:queue state)~)
-
-- ~:model/precondition~ specifies whether this command is valid to
-  run. By inspecting ~state~ and the generated arguments we may be
-  able to determine that this is an invalid call. In this case: if we
-  have not allocated a queue (using ~new-queue~) then it is invalid to
-  try to push.
-
-In addition to these, we can see that ~:next-state~ simply adds the
-command to the end of the ~:elements~ vector in the ~state~ map.
-
-*** ~pop-queue~
-
-Lastly, ~pop-queue~:
-
-#+BEGIN_SRC clojure :results silent :exports code
-  (defn pop-queue [queue]
-    (let [val (peek @queue)]
-      (swap! queue pop)))
-
-  (def pop-queue-specification
-    {:model/args (fn [state]
-                   (gen/return [(:queue state)]))
-     :model/precondition (fn [state _]
-                           (not (empty? (:elements state))))
-     :real/command #'pop-queue
-     :next-state (fn [state _ _]
-                   (assoc state
-                     :elements (vec (next (:elements state)))))
-     :real/postcondition (fn [state _ _ val]
-                           (= val (first (:elements state))))})
-#+END_SRC
-
-This specification has one more element from ~push-queue-specification~:
-
-- ~:real/postcondition~ determines whether the result of performing
-  this action correctly matches the expectation (from the abstract
-  state). In our case: we expect the value returned by ~pop-queue~ to
-  be the first value in the ~:elements~ vector.
-
-** Running
-
-Now we want to run our specification. In order to do this we first
-need to assemble each of our command specifications into a full model
-specification.
-
-#+BEGIN_SRC clojure :results silent :exports code
-  (def queue-spec
-    {:commands {:new new-queue-specification
-                :push push-queue-specification
-                :pop pop-queue-specification}
-     :model/generate-command (fn [state]
-                               (if (nil? state)
-                                 (gen/return :new)
-                                 (gen/elements [:push :pop])))})
-#+END_SRC
-
-The ~:commands~ key just contains a map of each command spec we are
-using for this model. ~:model/generate-command~ is a function from the
-abstract state to a generator which will generate a new command.
-
-Let's see what happens when we run this specification:
-
-#+BEGIN_SRC clojure :results result
-  (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645)
-  ;; {:result false, :seed 1417059242645, :failing-size 5, :num-tests 6, :fail [[[#<0> (:new)] [#<1> (:push #<0> 4)] [#<2> (:push #<0> 2)] [#<3> (:pop #<0>)]]], :shrunk {:total-nodes-visited 5, :depth 1, :result false, :smallest [[[#<0> (:new)] [#<1> (:push #<0> 4)] [#<3> (:pop #<0>)]]]}}
-#+END_SRC
-
-Whoops! It failed! We must have a bug somewhere. Let's see if we can see that output in a nicer form.
-
-#+BEGIN_SRC clojure :results output
-  (print-test-results queue-spec (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645))
-  ;; Failing test case:
-  ;;    #<0> = (:new)     ;=> #<Atom@6dce3a19: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-  ;;    #<1> = (:push #<0> 4)     ;=> nil
-  ;;    #<2> = (:push #<0> 2)     ;=> nil
-  ;;    #<3> = (:pop #<0>)        ;=> #<PersistentQueue clojure.lang.PersistentQueue@21>
-  ;;    !! Postcondition failed !!
-  ;; Shrunk:
-  ;;    #<0> = (:new)     ;=> #<Atom@7e4877a0: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-  ;;    #<1> = (:push #<0> 0)     ;=> nil
-  ;;    #<3> = (:pop #<0>)        ;=> #<PersistentQueue clojure.lang.PersistentQueue@1>
-  ;;    !! Postcondition failed !!
-#+END_SRC
-
-Okay, we seem to have an error when we create a queue, then push a
-value into it, then pop the value back out. So it could be a problem
-with any of our operations.
-
-Looking at the return value of the ~:pop~ step, though, we can see
-that it's returning the wrong thing! It's returning us a queue, not a
-value from the queue. We have a bug!
-
-So, let's fix our error.
-
-#+BEGIN_SRC clojure :results silent :exports code
-  (defn pop-queue [queue]
-    (let [val (peek @queue)]
-      (swap! queue pop)
-      val))
-#+END_SRC
-
-Now let's try running our tests again.
-
-#+BEGIN_SRC clojure :results result
-  (quick-check 100 (reality-matches-model? queue-spec) :seed 1417059242645)
-  ;; {:result true, :num-tests 100, :seed 1417059242645}
-#+END_SRC
-
-Success!
 
 * Specifications
 
