@@ -1,3 +1,21 @@
+* 0.3.1
+
+- ~:model/args~ now coerces the returned values into a generator.
+  Coercion works like the following:
+  + if it's a generator: return it
+  + if it's a sequential collection: coerce each element into a
+    generator, then use ~gen/tuple~ to combine them
+  + if it's a map: coerce each value into a generator, then use
+    ~gen/hash-map~ to combine each key/value-gen pair
+  + anything else: return it using ~gen/return~
+
+- ~:model/generate-command~ now have a default implementation. If you
+  don't provide an implementation then it will select a command at
+  random (effectively: ~(gen/elements (:commands spec))~).
+
+- If a value in the ~:command~ map is a var then dereference it (to
+  facilitate breaking up specs a bit more).
+
 * 0.3.0
 
 - *Breaking!* Add ~next-state~ to the ~:real/postcondition~ function
