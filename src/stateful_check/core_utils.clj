@@ -36,9 +36,10 @@
   the :name key."
   [spec state]
   (gen/gen-fmap (fn [rose-tree]
-                  (let [command-key (rose/root rose-tree)]
-                    (assoc (assert-val (get (:commands spec) command-key)
-                                       (str "Command " command-key " not found in :commands map"))
+                  (let [command-key (rose/root rose-tree)
+                        value (get (:commands spec) command-key)
+                        value (if (var? value) @value value)]
+                    (assoc (assert-val value (str "Command " command-key " not found in :commands map"))
                            :name command-key)))
                 ((:model/generate-command spec) state)))
 
