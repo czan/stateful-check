@@ -1,5 +1,7 @@
 (ns stateful-check.core-utils
-  (:require [clojure.test.check
+  (:require [clojure.test
+             [check :refer [quick-check]]]
+            [clojure.test.check
              [generators :as gen]
              [properties :refer [for-all]]
              [rose-tree :as rose]]
@@ -194,3 +196,14 @@
       (println "Shrunk:"))
     (print-command-results (run-commands spec (-> results :shrunk :smallest first)) stacktraces?)
     (println "Seed: " (:seed results))))
+
+(defn run-specification
+  "Run a specification. This will convert the spec into a property and
+  run it using clojure.test.check/quick-check. This function then
+  returns the full quick-check result."
+  ([specification] (run-specification specification nil))
+  ([specification {:keys [num-tests max-size seed]}]
+   (quick-check (or num-tests 100)
+                (spec->property specification)
+                :seed seed
+                :max-size (or max-size 200))))

@@ -9,35 +9,38 @@
   [spec]
   (utils/spec->property spec))
 
-(defn ^{:deprecated "0.3.0", :doc (:doc (meta #'utils/print-test-results))}
+(defn ^{:deprecated "0.3.0",
+        :doc (:doc (meta #'utils/print-test-results))
+        :arglists (:arglists (meta #'utils/print-test-results))}
   print-test-results
-  [spec results {:keys [first-case? stacktraces?]}]
-  (utils/print-test-results spec results {:first-case first-case?, :stacktraces? stacktraces?}))
+  [spec results options]
+  (utils/print-test-results spec results options))
 
-(def ^{:arglists '([specification]
-                   [specification {:keys [num-tests max-size seed print-first-case? print-stacktraces?]}])}
-  specification-correct?
-  "This value is a dummy, just so you're aware it exists. It should
-  only be used in an `is` form: (is (specification-correct? ...))" nil)
+(defn specification-correct?
+  "Test whether or not the specification matches reality. This
+  generates test cases and runs them."
+  {:arglist (:arglist (meta #'utils/run-specification))}
+  ([specification] (specification-correct? specification nil))
+  ([specification {:keys [num-tests max-size seed] :as options}]
+   (true? (:result (utils/run-specification specification options)))))
 
 (defmethod t/assert-expr 'specification-correct?
-  [msg [_ spec {:keys [num-tests max-size seed print-first-case? print-stacktraces?]}]]
-  `(let [spec# ~spec
-         results# (quick-check ~(or num-tests 100)
-                               (utils/spec->property spec#)
-                               :seed ~seed
-                               :max-size ~(or max-size 200))]
+  [msg [_ specification options]]
+  `(let [spec# ~specification
+         options# ~options
+         results# (utils/run-specification spec# options#)]
      (if (true? (:result results#))
        (t/do-report {:type :pass,
                      :message ~msg,
                      :expected :pass,
                      :actual :pass})
        (t/do-report {:type :fail,
-                     :message (str (if-let [msg# ~msg]
-                                     (str msg# "\n"))
-                                   (with-out-str (utils/print-test-results spec# results#
-                                                                           {:first-case? ~print-first-case?,
-                                                                            :stacktraces? ~print-stacktraces?}))),
+                     :message (with-out-str
+                                (if-let [msg# ~msg]
+                                  (println msg#))
+                                (->> {:first-case? (:print-first-case? options#)
+                                      :stacktraces? (:print-stacktraces? options#)}
+                                     (utils/print-test-results spec# results#))),
                      :expected :pass,
                      :actual :fail}))
-     (:result results#)))
+     (true? (:result results#))))
