@@ -20,21 +20,20 @@
 
 (def queue-spec
   {:commands {:push {:model/args (fn [state]
-                                   (gen/tuple (gen/return (:queue state))
-                                              gen/nat))
+                                   [(:queue state) gen/nat])
                      :real/command #'push-queue
                      :next-state (fn [state [_ val] _]
                                    (assoc state
                                           :elements (conj (:elements state) val)))}
               :peek {:model/args (fn [state]
-                                   (gen/return [(:queue state)]))
+                                   [(:queue state)])
                      :model/precondition (fn [state _]
                                            (not (empty? (:elements state))))
                      :real/command #'peek-queue
                      :real/postcondition (fn [state _ args val]
                                            (= val (first (:elements state))))}
               :pop {:model/args (fn [state]
-                                  (gen/return [(:queue state)]))
+                                  [(:queue state)])
                     :model/precondition (fn [state _]
                                           (not (empty? (:elements state))))
                     :real/command #'pop-queue
@@ -47,8 +46,6 @@
                       :real/command #'count-queue
                       :real/postcondition (fn [state _ _ val]
                                             (= val (count (:elements state))))}}
-   :model/generate-command (fn [state]
-                             (gen/elements [:push :pop :peek :count]))
    :initial-state (fn [queue]
                     {:queue queue, :elements []})
    :real/setup #'new-queue})
@@ -60,13 +57,13 @@
 (def global-state (atom #{}))
 (def atomic-set-spec
   {:commands {:add {:model/args (fn [state]
-                                  (gen/tuple gen/nat))
+                                  [gen/nat])
                     :next-state (fn [state [arg] _]
                                   (conj (or state #{}) arg))
                     :real/command #(swap! global-state conj %)}
 
               :remove {:model/args (fn [state]
-                                     (gen/tuple (gen/elements (vec state))))
+                                     [(gen/elements (vec state))])
                        :model/precondition (fn [state [arg]]
                                              (not (empty? state)))
                        :next-state (fn [state [arg] _]
@@ -74,8 +71,8 @@
                        :real/command #(swap! global-state disj %)}
 
               :contains? {:model/args (fn [state]
-                                        (gen/tuple (gen/one-of [(gen/elements (vec state))
-                                                                gen/nat])))
+                                        [(gen/one-of [(gen/elements (vec state))
+                                                      gen/nat])])
                           :real/command #(contains? @global-state %)
                           :real/postcondition (fn [state _ [value] result]
                                                 (= (contains? state value) result))}
@@ -114,14 +111,14 @@
                                             :real/command ticker-init}
 
                              :zero {:model/args (fn [state]
-                                                  (gen/tuple (gen/elements (keys state))))
+                                                  [(gen/elements (keys state))])
                                     :model/precondition (fn [state _] state)
                                     :next-state (fn [state [ticker] _]
                                                   (assoc state ticker 0))
                                     :real/command ticker-zero}
                              
                              :take-ticket {:model/args (fn [state]
-                                                         (gen/tuple (gen/elements (keys state))))
+                                                         [(gen/elements (keys state))])
                                            :model/precondition (fn [state _] state)
                                            :next-state (fn [state [ticker] _]
                                                          (assoc state

@@ -1,12 +1,27 @@
 (ns stateful-check.command-utils
-  (:require [clojure.test.check.generators :as gen]))
+  (:require [clojure.test.check.generators :as gen]
+            [clojure.walk :as walk]))
+
+(defn args-to-generator
+  "Convert a value into a generator, recursively. This means:
+    + generator? -> the value
+    + sequential? -> gen/tuple with each sub-value already processed
+    + map? -> gen/hash-map with each value (not keys) already processed
+    + otherwise -> gen/return the value"
+  [value]
+  (cond (gen/generator? value) value
+        (sequential? value) (apply gen/tuple (map args-to-generator value))
+        (map? value) (apply gen/hash-map (mapcat (fn [[k v]]
+                                                   [k (args-to-generator v)])
+                                                 value))
+        :else (gen/return value)))
 
 (defn generate-args
   "Generate the arguments for a command, taking into account whether
   or not the command declares a :model/args function."
   [command state]
   (if-let [args (:model/args command)]
-    (args state)
+    (args-to-generator (args state))
     (gen/return [])))
 
 (defn generate-command-name
