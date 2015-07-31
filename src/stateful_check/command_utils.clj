@@ -9,6 +9,15 @@
     (args state)
     (gen/return [])))
 
+(defn generate-command-name
+  "Generate a single command name which is the name of the next
+  command to be run. Generating the rest of the command object is left
+  up to some other process."
+  [spec state]
+  (if-let [generate-command (:model/generate-command spec)]
+    (generate-command state)
+    (gen/elements (keys (:commands spec)))))
+
 (defn check-precondition
   "Check the precondition for a command, taking into account whether
   or not the command declares a :model/precondition function."

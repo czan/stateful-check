@@ -41,7 +41,7 @@
                         value (if (var? value) @value value)]
                     (assoc (assert-val value (str "Command " command-key " not found in :commands map"))
                            :name command-key)))
-                ((:model/generate-command spec) state)))
+                (u/generate-command-name spec state)))
 
 ;; Don't remove the `size` parameter to this function! It's there so
 ;; we can keep track of how "long" the command list is meant to be
