@@ -55,18 +55,18 @@
    (gen/frequency
     [[1 (gen/gen-pure nil)]
      [size (gen-do command <- (generate-command-object spec state)
-                   args-rose <- (u/generate-args command state)
-                   :let [args (rose/root args-rose)]
-                   (if (u/check-precondition command state args)
-                     (gen-do :let [result (->RootVar count)]
-                             roses <- (generate-commands* spec
-                                                          (u/model-make-next-state command state args result)
-                                                          (dec size)
-                                                          (inc count))
-                             (gen/gen-pure (cons (rose/fmap (fn [args]
-                                                              [result (cons command args)])
-                                                            args-rose)
-                                                 roses)))
+                   (if (u/check-requires command state)
+                     (gen-do args-rose <- (u/generate-args command state)
+                             :let [args (rose/root args-rose)]
+                             (if (u/check-precondition command state args)
+                               (gen-do :let [result (->RootVar count)
+                                             next-state (u/model-make-next-state command state args result)]
+                                       roses <- (generate-commands* spec next-state (dec size) (inc count))
+                                       (gen/gen-pure (cons (rose/fmap (fn [args]
+                                                                        [result (cons command args)])
+                                                                      args-rose)
+                                                           roses)))
+                               (generate-commands* spec state size count)))
                      (generate-commands* spec state size count)))]])))
 
 (defn concat-command-roses

@@ -33,6 +33,15 @@
     (generate-command state)
     (gen/elements (keys (:commands spec)))))
 
+(defn check-requires
+  "Check the requirements for a command to be generated at all, taking
+  into account whether or not the command declares a :model/requires
+  function."
+  [command state]
+  (if-let [requires (:model/requires command)]
+    (requires state)
+    true))
+
 (defn check-precondition
   "Check the precondition for a command, taking into account whether
   or not the command declares a :model/precondition function."
