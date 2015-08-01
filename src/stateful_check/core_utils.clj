@@ -1,6 +1,5 @@
 (ns stateful-check.core-utils
-  (:require [clojure.test
-             [check :refer [quick-check]]]
+  (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check
              [generators :as gen]
              [properties :refer [for-all]]
@@ -86,24 +85,6 @@
                 (fn [roses]
                   (gen/gen-pure (concat-command-roses roses)))))
 
-(defn run-commands
-  "Run a seq of commands against a live system."
-  [spec command-list]
-  (let [state-fn (or (:real/initial-state spec)
-                     (:initial-state spec)
-                     (constantly nil))
-        setup-fn (:real/setup spec)
-        setup-value (if setup-fn (setup-fn))
-        results (if setup-fn
-                  {(->RootVar setup-name) setup-value})
-        state (if setup-fn
-                (state-fn setup-value)
-                (state-fn))
-        command-results (r/run-commands command-list results state spec)]
-    (if-let [f (:real/cleanup spec)]
-      (f (last (r/extract-states command-results))))
-    command-results))
-
 (defn valid-commands?
   "Verify whether a given list of commands is valid (preconditions all
   return true, symbolic vars are all valid, etc.)."
@@ -134,7 +115,7 @@
 
 (defn spec->property [spec]
   (for-all [commands (generate-valid-commands spec)]
-    (let [command-results (run-commands spec commands)
+    (let [command-results (r/run-commands spec commands)
           ex (r/extract-exception command-results)]
       (cond (r/passed? command-results) true
             ex (throw ex)
@@ -144,7 +125,7 @@
   (str (pr-str sym-var) " = " (pr-str (cons name args))))
 
 (defn print-command-results
-  "Print out the results of a `run-commands` call. No commands are
+  "Print out the results of a `r/run-commands` call. No commands are
   actually run, as the argument to this function contains the results
   for each individual command."
   ([results] (print-command-results results false))
@@ -157,10 +138,10 @@
        ;; will see
        (case type
          :postcondition-check
-         (let [[_ cmd _ _ _ _ result] step]
+         (let [[_ _ cmd _ _ _ _ result] step]
            (println "  " (format-command cmd) "\t=>" (pr-str result)))
          :fail
-         (let [[_ ex] step
+         (let [[_ _ _ ex] step
                [pre-type cmd] pre
                location (case pre-type
                           :precondition-check "checking precondition"
@@ -193,9 +174,9 @@
   (when-not (true? (:result results))
     (when first-case?
       (println "First failing test case:")
-      (print-command-results (run-commands spec (-> results :fail first)) stacktraces?)
+      (print-command-results (r/run-commands spec (-> results :fail first)) stacktraces?)
       (println "Shrunk:"))
-    (print-command-results (run-commands spec (-> results :shrunk :smallest first)) stacktraces?)
+    (print-command-results (r/run-commands spec (-> results :shrunk :smallest first)) stacktraces?)
     (println "Seed: " (:seed results))))
 
 (defn run-specification

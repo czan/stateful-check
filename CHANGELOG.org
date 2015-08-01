@@ -16,6 +16,33 @@
 - If a value in the ~:command~ map is a var then dereference it (to
   facilitate breaking up specs a bit more).
 
+- Command results are now printed properly when the results of
+  commands are mutated. Previously it would print the command results
+  in their state at the end of the test, irrespective of where they
+  actually were returned. Now the results will be printed prior to
+  running the next command in the sequence.
+
+  It used to print something like this:
+  #+BEGIN_EXAMPLE
+    #<0> = (:new) => #{10}
+    #<1> = (:contains? #<0> 10) => false
+    #<2> = (:add #<0> 10) => true
+    #<3> = (:contains? #<0> 10) => true
+  #+END_EXAMPLE
+
+  This is clearly wrong: when the set was created it had zero
+  elements. The 10 was only added in later. At the end of the test,
+  though, the set had the 10 in it, so it was printed as such. This is
+  unhelpful.
+
+  It will now print something like this:
+  #+BEGIN_EXAMPLE
+    #<0> = (:new) => #{}
+    #<1> = (:contains? #<0> 10) => false
+    #<2> = (:add #<0> 10) => true
+    #<3> = (:contains? #<0> 10) => true
+  #+END_EXAMPLE
+
 * 0.3.0
 
 - *Breaking!* Add ~next-state~ to the ~:real/postcondition~ function

@@ -98,3 +98,10 @@
   (if-let [postcondition (:real/postcondition spec)]
     (postcondition state)
     true))
+
+(defn run-spec-cleanup
+  "Run the cleanup function for the specification, taking into account
+  whether or not the specification declares a :real/cleanup function."
+  [spec state]
+  (if-let [f (:real/cleanup spec)]
+    (f state)))

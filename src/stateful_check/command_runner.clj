@@ -2,7 +2,7 @@
   (:require [clojure.walk :as walk]
             [stateful-check
              [command-utils :as u]
-             [symbolic-values :refer [get-real-value SymbolicValue]]]))
+             [symbolic-values :refer [get-real-value SymbolicValue ->RootVar]]]))
 
 (defmulti step-command-runner
   "Step the command runner state machine one step. Each state in the
@@ -16,7 +16,7 @@
 ;; :pass, :fail
 
 (defmethod step-command-runner :next-command
-  [_ command-list results state spec]
+  [_ spec command-list results state]
   (if (seq command-list)
     (try (if (u/check-spec-postcondition spec state)
            (let [[sym-var [command & raw-args]] (first command-list)
@@ -25,69 +25,78 @@
                                         (get-real-value value results)
                                         value))
                                     raw-args)]
-             [:run-command
+             [:run-command spec
               [sym-var [command args raw-args]]
               (next command-list)
               results
-              state
-              spec])
-           [:fail])
+              state])
+           [:fail spec state])
          (catch Throwable ex
-           [:fail ex]))
-    [:pass]))
+           [:fail spec state ex]))
+    [:pass spec]))
 
 (defmethod step-command-runner :run-command
-  [_ [sym-var [command args raw-args] :as current] command-list results state spec]
+  [_ spec [sym-var [command args raw-args] :as current] command-list results state]
   (try (let [result (u/run-command command args)
              results (assoc results sym-var result)]
-         [:next-state
+         [:next-state spec
           current
           command-list
           results
           state
-          result
-          spec])
+          result])
        (catch Throwable ex
-         [:fail ex [sym-var [command args raw-args]]])))
+         [:fail spec state ex])))
 
 (defmethod step-command-runner :next-state
-  [_ [sym-var [command args raw-args] :as current] command-list results previous-state result spec]
-  (try [:postcondition-check
+  [_ spec [sym-var [command args raw-args] :as current] command-list results state result]
+  (try [:postcondition-check spec
         current
         command-list
         results
-        (u/real-make-next-state command previous-state args result)
-        previous-state
-        result
-        spec]
+        (u/real-make-next-state command state args result)
+        state
+        result]
        (catch Throwable ex
-         [:fail ex [sym-var [command args raw-args]]])))
+         [:fail spec state ex])))
 
 (defmethod step-command-runner :postcondition-check
-  [_ [sym-var [command args raw-args] :as current] command-list results next-state prev-state result spec]
+  [_ spec [sym-var [command args raw-args] :as current] command-list results next-state prev-state result]
   (try (if (u/check-postcondition command prev-state next-state args result)
-         [:next-command
+         [:next-command spec
           command-list
           results
-          next-state
-          spec]
-         [:fail])
+          next-state]
+         [:fail spec next-state])
        (catch Throwable ex
-         [:fail ex [sym-var [command args raw-args]]])))
+         [:fail spec next-state ex])))
 
 ;; terminal states, so return `nil`
-(defmethod step-command-runner :fail [& _])
-(defmethod step-command-runner :pass [& _])
+(defmethod step-command-runner :fail [spec state & _]
+  (u/run-spec-cleanup spec state)
+  nil)
+(defmethod step-command-runner :pass [spec state & _]
+  (u/run-spec-cleanup spec state)
+  nil)
 
 (defn run-commands
   "Run the given list of commands with the provided initial
-  results/state. Returns a realized seq of states from the command
+  results/state. Returns a lazy seq of states from the command
   runner."
-  [command-list initial-results initial-state spec]
-  (->> [:next-command command-list initial-results initial-state spec]
-       (iterate (partial apply step-command-runner))
-       (take-while (complement nil?))
-       doall))
+  [spec command-list]
+  (let [state-fn (or (:real/initial-state spec)
+                     (:initial-state spec)
+                     (constantly nil))
+        setup-fn (:real/setup spec)
+        setup-value (if setup-fn (setup-fn))
+        results (if setup-fn
+                  {(->RootVar "setup") setup-value})
+        state (if setup-fn
+                (state-fn setup-value)
+                (state-fn))]
+    (->> [:next-command spec command-list results state]
+         (iterate (partial apply step-command-runner))
+         (take-while (complement nil?)))))
 
 (defn passed?
   "Determine whether a list of command runner states represents a
