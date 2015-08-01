@@ -142,7 +142,7 @@
            (println "  " (format-command cmd) "\t=>" (pr-str result)))
          :fail
          (let [[_ _ _ ex] step
-               [pre-type cmd] pre
+               [pre-type _ cmd] pre
                location (case pre-type
                           :precondition-check "checking precondition"
                           :run-command "executing command"
