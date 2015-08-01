@@ -1,7 +1,7 @@
 (ns stateful-check.queue-test
-  (:require  [clojure.test :refer :all]
-             [clojure.test.check.generators :as gen]
-             [stateful-check.core :refer :all]))
+  (:require [clojure.test :refer :all]
+            [clojure.test.check.generators :as gen]
+            [stateful-check.core :refer :all]))
 
 ;;
 ;; Simple mutable queue implementation
