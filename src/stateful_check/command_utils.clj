@@ -24,15 +24,6 @@
     (args-to-generator (args state))
     (gen/return [])))
 
-(defn generate-command-name
-  "Generate a single command name which is the name of the next
-  command to be run. Generating the rest of the command object is left
-  up to some other process."
-  [spec state]
-  (if-let [generate-command (:model/generate-command spec)]
-    (generate-command state)
-    (gen/elements (keys (:commands spec)))))
-
 (defn check-requires
   "Check the requirements for a command to be generated at all, taking
   into account whether or not the command declares a :model/requires
@@ -41,6 +32,19 @@
   (if-let [requires (:model/requires command)]
     (requires state)
     true))
+
+(defn generate-command-name
+  "Generate a single command name which is the name of the next
+  command to be run. Generating the rest of the command object is left
+  up to some other process."
+  [spec state]
+  (if-let [generate-command (:model/generate-command spec)]
+    (generate-command state)
+    (if-let [valid-commands (->> (keys (:commands spec))
+                              (filter #(check-requires % state))
+                              seq)]
+      (gen/elements valid-commands)
+      (throw (AssertionError. "All commands failed `:model/requires` check: cannot generate a valid command!")))))
 
 (defn check-precondition
   "Check the precondition for a command, taking into account whether
