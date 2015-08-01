@@ -12,7 +12,7 @@
   implementations, and they return a new state variant."
   (fn [state-name & _] state-name))
 
-;; :next-command, :precondition-check, :run-command, :next-state, :postcondition-check
+;; :next-command, :run-command, :next-state, :postcondition-check
 ;; :pass, :fail
 
 (defmethod step-command-runner :next-command
@@ -25,7 +25,7 @@
                                         (get-real-value value results)
                                         value))
                                     raw-args)]
-             [:precondition-check
+             [:run-command
               [sym-var [command args raw-args]]
               (next command-list)
               results
@@ -35,19 +35,6 @@
          (catch Throwable ex
            [:fail ex]))
     [:pass]))
-
-(defmethod step-command-runner :precondition-check
-  [_ [sym-var [command args raw-args] :as current] command-list results state spec]
-  (try (if (u/check-precondition command state args)
-         [:run-command
-          current
-          command-list
-          results
-          state
-          spec]
-         [:fail])
-       (catch Throwable ex
-         [:fail ex [sym-var [command args raw-args]]])))
 
 (defmethod step-command-runner :run-command
   [_ [sym-var [command args raw-args] :as current] command-list results state spec]

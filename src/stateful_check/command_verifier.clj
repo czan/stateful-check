@@ -27,7 +27,8 @@
 
 (defmethod step-command-verifier :precondition-check
   [_ [sym-var [command args] :as current] command-list results state]
-  (try (if (and (every? (fn [arg]
+  (try (if (and (u/check-requires command state)
+                (every? (fn [arg]
                           (if (satisfies? SymbolicValue arg)
                             (symbolic-values/valid? arg results)
                             true))
