@@ -111,14 +111,14 @@ Specifications have one required key:
 | ~:commands~ | map of names to commands |
 
 The ~:commands~ key specifies all of the commands that can be used in
-this specification. Each commands needs a "name", which will be used
-in the command output to identify which command is being run.  
+this specification. Each command needs a "name", which will be used in
+the command output to identify which command is being run.
 
 The values of the map may either be a command map (see above section
 on their structure), or they may be a var which holds a reference to a
-command map. If the value is a var then it will be looked up whenever
-the command is generated (this permits the var to be redefined without
-needing to also redefine the spec).
+command map. If the value is a var then it will be dereferenced
+whenever the command is generated (this permits the var to be
+redefined without needing to also redefine the spec).
 
 ** Optional
 
