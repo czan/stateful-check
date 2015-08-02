@@ -22,6 +22,8 @@ A command is a single action which the ~stateful-test~ runner may
 perform on the system. It specifies the command's semantics in both
 the abstract model and the real execution of the command.
 
+** Required
+
 Commands have one required function:
 
 | Key             | Arguments                           |
@@ -30,6 +32,8 @@ Commands have one required function:
 The ~:real/command~ key specifies what to do when executing this
 command on a real system. The arguments to this function are
 determined by the ~:model/args~ function (specified below).
+
+** Optional
 
 Commands then have a number of optional functions:
 
@@ -87,10 +91,12 @@ execution will be considered failed.
 
 * Specifications
 
+** Required
+
 Specifications have one required key:
 
 | Key         | Shape                    |
-| ~:commands~ | Map of names to commands |
+| ~:commands~ | map of names to commands |
 
 The ~:commands~ key specifies all of the commands that can be used in
 this specification. Each commands needs a "name", which will be used
@@ -101,6 +107,8 @@ on their structure), or they may be a var which holds a reference to a
 command map. If the value is a var then it will be looked up whenever
 the command is generated (this permits the var to be redefined without
 needing to also redefine the spec).
+
+** Optional
 
 Specifications also have a number of optional functions:
 
