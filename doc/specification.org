@@ -14,7 +14,7 @@ execution, will be replaced by their concrete values).
 If a key is in the ~real~ namespace (ie. ~:real/command~) then it is
 only run during the /real execution/ phase. These functions may
 perform any side-effecting operation and may interact with the real
-system.
+system in any way.
 
 * Commands
 
@@ -89,7 +89,19 @@ performed. This function is provided with the concrete state before
 falsey value then command execution will stop and the current
 execution will be considered failed.
 
-* Specifications
+* System Specifications
+
+System specifications are a representation of a number of commands
+which can be performed on an actual system. They specify any
+whole-system invariants, as well as setup/cleanup operations and any
+extra rules around command generation.
+
+When running ~stateful-check~ it always expects a system specification
+to be provided at the top level.
+
+#+BEGIN_SRC clojure
+  (is (specification-correct? system-specification))
+#+END_SRC
 
 ** Required
 
@@ -111,6 +123,19 @@ needing to also redefine the spec).
 ** Optional
 
 Specifications also have a number of optional functions:
+
+| Key                       | Arguments | Default value                                 |
+| ~:model/generate-command~ | ~[state]~ | ~(gen/elements (:keys system-specification))~ |
+
+The ~:model/generate-command~ function is used to determine which
+command to add to the command list next. The generator returned by
+~:model/generate-command~ is used to generate the name of the next
+command (which then goes through ordinary command generation).
+
+In general, if your commands are set up appropriately then you will
+not need to declare a ~:model/generate-command~ function. It can be
+helpful for changing the distribution of generated commands, or for
+increasing the efficiency of generation in some cases.
 
 | Key             | Arguments | Default value |
 | ~:real/setup~   | none      | ~nil~         |
