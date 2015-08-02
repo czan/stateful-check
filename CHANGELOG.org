@@ -9,7 +9,7 @@
     ~gen/hash-map~ to combine each key/value-gen pair
   + anything else: return it using ~gen/return~
 
-- ~:model/generate-command~ now have a default implementation. If you
+- ~:model/generate-command~ now has a default implementation. If you
   don't provide an implementation then it will select a command at
   random (effectively: ~(gen/elements (:commands spec))~).
 
