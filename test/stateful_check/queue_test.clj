@@ -43,8 +43,8 @@
                          (= val (first (:elements state))))})
 
 (def pop-queue-command
-  {:model/args (fn [state] [(:queue state)])
-   :model/precondition (fn [state _] (seq (:elements state)))
+  {:model/requires (fn [state] (seq (:elements state)))
+   :model/args (fn [state] [(:queue state)])
    :real/command #'pop-queue
    :next-state (fn [state _ _]
                  (update-in state [:elements] (comp vec next)))})
