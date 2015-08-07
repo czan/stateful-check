@@ -30,10 +30,11 @@
     #<3> = (:contains? #<0> 10) => true
   #+END_EXAMPLE
 
-  This is clearly wrong: when the set was created it had zero
-  elements. The 10 was only added in later. At the end of the test,
-  though, the set had the 10 in it, so it was printed as such. This is
-  unhelpful.
+  This incorrectly shows the state of the test (at the point when it
+  was created) to have the element ~10~ in it. The ~10~ wasn't added
+  until command ~#<2>~, however, so that output is incorrect. This
+  could cause us to think the set's implementation is wrong when it is
+  actually a quirk of ~stateful-check~ causing this problem.
 
   It will now print something like this:
   #+BEGIN_EXAMPLE
