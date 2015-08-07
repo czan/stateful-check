@@ -99,7 +99,8 @@
                 (state-fn))]
     (->> [:next-command spec command-list results state]
          (iterate (partial apply step-command-runner))
-         (take-while (complement nil?)))))
+         (take-while (complement nil?))
+         doall)))
 
 (defn passed?
   "Determine whether a list of command runner states represents a
