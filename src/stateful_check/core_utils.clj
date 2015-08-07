@@ -113,13 +113,23 @@
        (generate-commands spec)
        (gen/such-that (partial valid-commands? spec))))
 
-(defn spec->property [spec]
-  (for-all [commands (generate-valid-commands spec)]
-    (let [command-results (r/run-commands spec commands)
-          ex (r/extract-exception command-results)]
-      (cond (r/passed? command-results) true
-            ex (throw ex)
-            :else false))))
+(defn make-failure-exception [results]
+  (ex-info ""
+           {:results results}))
+
+(defn spec->property
+  "Turn a specification into a testable property."
+  ([spec] (spec->property spec {:tries 1}))
+  ([spec {:keys [tries]}]
+   (for-all [commands (generate-valid-commands spec)]
+     (loop [tries (or tries 1)
+            results (r/run-commands spec commands)]
+       (if (r/passed? results)
+         (if (pos? tries)
+           (recur (dec tries)
+                  (r/run-commands spec commands))
+           true)
+         (throw (make-failure-exception results)))))))
 
 (defn format-command [[sym-var [{name :name} _ args] :as cmd]]
   (str (pr-str sym-var) " = " (pr-str (cons name args))))
@@ -174,9 +184,9 @@
   (when-not (true? (:result results))
     (when first-case?
       (println "First failing test case:")
-      (print-command-results (r/run-commands spec (-> results :fail first)) stacktraces?)
+      (print-command-results (-> results :result ex-data :results) stacktraces?)
       (println "Shrunk:"))
-    (print-command-results (r/run-commands spec (-> results :shrunk :smallest first)) stacktraces?)
+    (print-command-results (-> results :shrunk :result ex-data :results) stacktraces?)
     (println "Seed: " (:seed results))))
 
 (defn run-specification
@@ -184,8 +194,8 @@
   run it using clojure.test.check/quick-check. This function then
   returns the full quick-check result."
   ([specification] (run-specification specification nil))
-  ([specification {:keys [num-tests max-size seed]}]
+  ([specification {:keys [num-tests max-size seed tries]}]
    (quick-check (or num-tests 100)
-                (spec->property specification)
+                (spec->property specification {:tries tries})
                 :seed seed
                 :max-size (or max-size 200))))
