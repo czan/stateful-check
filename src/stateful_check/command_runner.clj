@@ -33,7 +33,7 @@
            [:fail spec state])
          (catch Throwable ex
            [:fail spec state ex]))
-    [:pass spec]))
+    [:pass spec state]))
 
 (defmethod step-command-runner :run-command
   [_ spec [sym-var [command args raw-args] :as current] command-list results state]
@@ -72,10 +72,10 @@
          [:fail spec next-state ex])))
 
 ;; terminal states, so return `nil`
-(defmethod step-command-runner :fail [spec state & _]
+(defmethod step-command-runner :fail [_ spec state & _]
   (u/run-spec-cleanup spec state)
   nil)
-(defmethod step-command-runner :pass [spec state & _]
+(defmethod step-command-runner :pass [_ spec state & _]
   (u/run-spec-cleanup spec state)
   nil)
 
@@ -102,24 +102,12 @@
   "Determine whether a list of command runner states represents a
   successfully completed execution."
   [command-results]
-  (or (empty? command-results)
-      (->> command-results
-           (some (comp #{:pass} first))
-           boolean)))
+  (= (first (last command-results)) :pass))
 
 (defn extract-exception
   "Return the exception thrown during the execution of commands for
   this result list."
   [command-results]
-  (let [failure (->> command-results
-                     (filter (comp #{:fail} first))
-                     first)]
-    (second failure)))
-
-(defn extract-states
-  "Return each of the execution states seen during the execution of
-  the commands for this result list."
-  [command-results]
-  (->> command-results
-       (filter (comp #{:postcondition-check} first))
-       (map #(nth % 3))))
+  (let [[type _ _ exception] (last command-results)]
+    (if (= type :fail)
+      exception)))

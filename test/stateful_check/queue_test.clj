@@ -59,13 +59,33 @@
 ;; Generative testing specification
 ;;
 
+(def queues-in-use (atom 0))
 (def queue-specification
   {:commands {:push #'push-queue-command
               :peek #'peek-queue-command
               :pop #'pop-queue-command
               :count #'count-queue-command}
    :initial-state (fn [queue] {:queue queue, :elements []})
-   :real/setup #'new-queue})
+   :real/setup (fn []
+                 (swap! queues-in-use inc)
+                 (new-queue))
+   :real/cleanup (fn [state]
+                   (swap! queues-in-use dec))})
+
+(def failing-queue-specification
+  {:commands {:push #'push-queue-command
+              :peek #'peek-queue-command
+              :pop #'pop-queue-command
+              :count #'count-queue-command}
+   :initial-state (fn [queue] {:queue queue, :elements [1]})
+   :real/setup (fn []
+                 (swap! queues-in-use inc)
+                 (new-queue))
+   :real/cleanup (fn [state]
+                   (swap! queues-in-use dec))})
 
 (deftest queue-test
-  (is (specification-correct? queue-specification)))
+  (let [val @queues-in-use]
+    (is (specification-correct? queue-specification))
+    (is (not (specification-correct? failing-queue-specification)))
+    (is (= val @queues-in-use) "setup/cleanup should both be run for all tests (pass and fail)")))

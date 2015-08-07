@@ -43,6 +43,10 @@
     #<3> = (:contains? #<0> 10) => true
   #+END_EXAMPLE
 
+- ~:real/setup~ and ~:real/cleanup~ had some major issues (not running
+  being prime among them) which are now fixed. A test has been added
+  to hopefully avoid this happening again in future.
+
 * 0.3.0
 
 - *Breaking!* Add ~next-state~ to the ~:real/postcondition~ function
