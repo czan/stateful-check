@@ -122,14 +122,13 @@
   ([spec] (spec->property spec {:tries 1}))
   ([spec {:keys [tries]}]
    (for-all [commands (generate-valid-commands spec)]
-     (loop [tries (or tries 1)
-            results (r/run-commands spec commands)]
-       (if (r/passed? results)
-         (if (pos? tries)
-           (recur (dec tries)
-                  (r/run-commands spec commands))
-           true)
-         (throw (make-failure-exception results)))))))
+     (loop [tries (or tries 1)]
+       (if (pos? tries)
+         (let [results (r/run-commands spec commands)]
+           (if (r/passed? results)
+             (recur (dec tries))
+             (throw (make-failure-exception results))))
+         true)))))
 
 (defn format-command [[sym-var [{name :name} _ args] :as cmd]]
   (str (pr-str sym-var) " = " (pr-str (cons name args))))
