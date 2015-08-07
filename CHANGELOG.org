@@ -48,6 +48,10 @@
   being prime among them) which are now fixed. A test has been added
   to hopefully avoid this happening again in future.
 
+- Add a ~:tries~ argument to the ~specification-correct?~ options map.
+  This runs each test a number of times, with any failure causing the
+  run to fail. (Useful for non-deterministic tests.)
+
 * 0.3.0
 
 - *Breaking!* Add ~next-state~ to the ~:real/postcondition~ function
