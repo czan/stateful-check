@@ -64,7 +64,7 @@
          [:fail spec state ex])))
 
 (defmethod step-command-runner :postcondition-check
-  [_ spec [sym-var [command args raw-args] :as current] command-list results next-state prev-state result]
+  [_ spec [sym-var [command args raw-args] :as current] command-list results next-state prev-state result _]
   (try (if (u/check-postcondition command prev-state next-state args result)
          [:next-command spec
           command-list
