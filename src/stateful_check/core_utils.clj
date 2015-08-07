@@ -148,8 +148,8 @@
        ;; will see
        (case type
          :postcondition-check
-         (let [[_ _ cmd _ _ _ _ result] step]
-           (println "  " (format-command cmd) "\t=>" (pr-str result)))
+         (let [[_ _ cmd _ _ _ _ _ str-result] step]
+           (println "  " (format-command cmd) "\t=>" str-result))
          :fail
          (let [[_ _ _ ex] step
                [pre-type _ cmd] pre

@@ -56,7 +56,10 @@
         results
         (u/real-make-next-state command state args result)
         state
-        result]
+        result
+        (pr-str result) ;; this is for debug purposes, as it
+                        ;; effectively takes a snapshot of the object
+        ]
        (catch Throwable ex
          [:fail spec state ex])))
 
