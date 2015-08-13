@@ -33,7 +33,9 @@
   {:model/args (fn [state] [(:queue state) gen/nat])
    :real/command #'push-queue
    :next-state (fn [state [_ val] _]
-                 (update-in state [:elements] conj val))})
+                 (update-in state [:elements] conj val))
+   :real/postcondition (fn [_ _ _ result]
+                         (nil? result))})
 
 (def peek-queue-command
   {:model/args (fn [state] [(:queue state)])
@@ -47,7 +49,9 @@
    :model/args (fn [state] [(:queue state)])
    :real/command #'pop-queue
    :next-state (fn [state _ _]
-                 (update-in state [:elements] (comp vec next)))})
+                 (update-in state [:elements] (comp vec next)))
+   :real/postcondition (fn [state _ args val]
+                         (= val (first (:elements state))))})
 
 (def count-queue-command
   {:model/args (fn [state] [(:queue state)])
@@ -60,12 +64,15 @@
 ;;
 
 (def queues-in-use (atom 0))
+
 (def queue-specification
   {:commands {:push #'push-queue-command
               :peek #'peek-queue-command
               :pop #'pop-queue-command
               :count #'count-queue-command}
-   :initial-state (fn [queue] {:queue queue, :elements []})
+   :initial-state (fn [queue]
+                    {:queue queue,
+                     :elements []})
    :real/setup (fn []
                  (swap! queues-in-use inc)
                  (new-queue))
