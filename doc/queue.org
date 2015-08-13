@@ -15,9 +15,9 @@ we'll need later.
               [stateful-check.core :refer [specification-correct?]]))
 #+END_SRC
 
-** Defining
+* Defining
 
-*** ~new-queue~
+** ~new-queue~
 
 The implementation for the ~new-queue~ function is quite simple:
 
@@ -59,7 +59,7 @@ command, however, it will be replaced by its corresponding concrete
 value (as can be seen below, where ~:queue~ is used as an argument to
 ~push-queue~ and ~pop-queue~).
 
-*** ~push-queue~
+** ~push-queue~
 
 Similarly, ~push-queue~ is fairly simple to implement.
 
@@ -93,7 +93,7 @@ that there be something truthy in the state, and ~:next-state~ simply
 adds the command to the end of the ~:elements~ vector in the ~state~
 map.
 
-*** ~pop-queue~
+** ~pop-queue~
 
 Lastly, ~pop-queue~:
 
@@ -119,7 +119,7 @@ This specification has one more element from ~push-queue-specification~:
   state). In our case: we expect the value returned by ~pop-queue~ to
   be the first value in the ~:elements~ vector.
 
-** Running
+* Running
 
 Now we want to run our specification. In order to do this we first
 need to assemble each of our command specifications into a full model
@@ -139,14 +139,15 @@ abstract state to a generator which will generate a new command.
 Let's see what happens when we run this specification:
 
 #+BEGIN_SRC clojure :results replace output
-  (is (specification-correct? queue-spec {:print-stacktraces? true, :seed 1438362541481}))
+  (is (specification-correct? queue-spec {:seed 1438362541481}))
   ;;
-  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init3306622126812113447.clj:1)
-  ;;    #<0> = (:new)     => #<Atom@24c18b02: #<PersistentQueue clojure.lang.PersistentQueue@1>>
+  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init3962045565695936929.clj:1)
+  ;;    #<0> = (:new)     => #<Atom@766af535: #<PersistentQueue clojure.lang.PersistentQueue@1>>
   ;;    #<2> = (:push #<0> 0)     => nil
   ;;    #<3> = (:pop #<0>)        => #<PersistentQueue clojure.lang.PersistentQueue@1>
   ;; Error while checking postcondition
   ;; Seed:  1438362541481
+  ;; Visited:  11
   ;;
   ;; expected: :pass
   ;;   actual: :fail
@@ -176,8 +177,6 @@ Now let's try running our tests again.
 #+BEGIN_SRC clojure :results replace output
   (is (specification-correct? queue-spec))
 #+END_SRC
-
-#+RESULTS:
 
 No output? That means the test passed! Success!
 
