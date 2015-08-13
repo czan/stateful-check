@@ -186,7 +186,8 @@
       (print-command-results (-> results :result ex-data :results) stacktraces?)
       (println "Shrunk:"))
     (print-command-results (-> results :shrunk :result ex-data :results) stacktraces?)
-    (println "Seed: " (:seed results))))
+    (println "Seed: " (:seed results))
+    (println "Visited: " (-> results :shrunk :total-nodes-visited))))
 
 (defn run-specification
   "Run a specification. This will convert the spec into a property and
