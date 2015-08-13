@@ -52,6 +52,12 @@
   This runs each test a number of times, with any failure causing the
   run to fail. (Useful for non-deterministic tests.)
 
+- Shrinking is now a bit more aggressive. In particular, now it will
+  start by trying to shrink single commands (whether by removing the
+  command or by shrinking its arguments), but then it will also try to
+  shrink pairs of commands (removing/shrinking both at the same time).
+  This can lead to dramatically better shrinks in some situations.
+
 * 0.3.0
 
 - *Breaking!* Add ~next-state~ to the ~:real/postcondition~ function

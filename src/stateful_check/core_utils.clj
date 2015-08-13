@@ -68,45 +68,13 @@
                                (generate-commands* spec state size count)))
                      (generate-commands* spec state size count)))]])))
 
-(defn remove-chunks
-  "Try removing 'chunks' of adjacent elements for shrinking purposes."
-  [roses]
-  (for [size (range (count roses) 0 -1)
-        i (range 0 (count roses) size)]
-    (into (vec (take i roses))
-          (drop (+ i size) roses))))
-
-(defn remove-pairs
-  "Try removing pairs of elements (not necessarily adjacent) for
-  shrinking purposes."
-  [roses]
-  (for [i (range 0 (dec (count roses)))
-        :let [initial (vec (take i roses))]
-        j (range (inc i) (count roses))
-        :let [middle (->> roses
-                          (take j)
-                          (drop (inc i)))
-              tail (drop (inc j) roses)]]
-    (-> initial
-        (into middle)
-        (into tail))))
-
 (defn shrink-roses
   "Shrink the command rose trees (by removing commands and shrinking
   command arguments)."
   [roses]
-  (->> (let [chunks (remove-chunks roses)
-             pairs (remove-pairs roses)]
-         (concat chunks
-                 pairs
-                 (rose/permutations roses)
-                 ;; these are here because sometimes an accurate
-                 ;; shrink involves removing a chunk/pair *and*
-                 ;; shrinking a command's arguments at the same time
-                 ;; (which is what these do)
-                 (mapcat rose/permutations chunks)
-                 (mapcat rose/permutations pairs)))
-       (remove empty?)))
+  (let [singles (rose/remove roses)
+        pairs (mapcat (comp rose/remove vec) singles)]
+    (concat singles pairs)))
 
 (defn concat-command-roses
   "Take a seq of rose trees and concatenate them. Create a vector from
