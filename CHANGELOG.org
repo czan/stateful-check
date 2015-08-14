@@ -1,3 +1,63 @@
+* 0.3.1
+
+- ~:model/args~ now coerces the returned values into a generator.
+  Coercion works like the following:
+  + if it's a generator: return it
+  + if it's a sequential collection: coerce each element into a
+    generator, then use ~gen/tuple~ to combine them
+  + if it's a map: coerce each value into a generator, then use
+    ~gen/hash-map~ to combine each key/value-gen pair
+  + anything else: return it using ~gen/return~
+
+- ~:model/generate-command~ now has a default implementation. If you
+  don't provide an implementation then it will select a command at
+  random (effectively: ~(gen/elements (:commands spec))~).
+
+- If a value in the ~:command~ map is a var then dereference it (to
+  facilitate breaking up specs a bit more).
+
+- Command results are now printed properly when the results of
+  commands are mutated. Previously it would print the command results
+  in their state at the end of the test, irrespective of where they
+  actually were returned. Now the results will be printed prior to
+  running the next command in the sequence.
+
+  It used to print something like this:
+  #+BEGIN_EXAMPLE
+    #<0> = (:new) => #{10}
+    #<1> = (:contains? #<0> 10) => false
+    #<2> = (:add #<0> 10) => true
+    #<3> = (:contains? #<0> 10) => true
+  #+END_EXAMPLE
+
+  This incorrectly shows the state of the test (at the point when it
+  was created) to have the element ~10~ in it. The ~10~ wasn't added
+  until command ~#<2>~, however, so that output is incorrect. This
+  could cause us to think the set's implementation is wrong when it is
+  actually a quirk of ~stateful-check~ causing this problem.
+
+  It will now print something like this:
+  #+BEGIN_EXAMPLE
+    #<0> = (:new) => #{}
+    #<1> = (:contains? #<0> 10) => false
+    #<2> = (:add #<0> 10) => true
+    #<3> = (:contains? #<0> 10) => true
+  #+END_EXAMPLE
+
+- ~:real/setup~ and ~:real/cleanup~ had some major issues (not running
+  being prime among them) which are now fixed. A test has been added
+  to hopefully avoid this happening again in future.
+
+- Add a ~:tries~ argument to the ~specification-correct?~ options map.
+  This runs each test a number of times, with any failure causing the
+  run to fail. (Useful for non-deterministic tests.)
+
+- Shrinking is now a bit more aggressive. In particular, now it will
+  start by trying to shrink single commands (whether by removing the
+  command or by shrinking its arguments), but then it will also try to
+  shrink pairs of commands (removing/shrinking both at the same time).
+  This can lead to dramatically better shrinks in some situations.
+
 * 0.3.0
 
 - *Breaking!* Add ~next-state~ to the ~:real/postcondition~ function

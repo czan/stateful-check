@@ -1,6 +1,5 @@
 (ns stateful-check.core-utils
-  (:require [clojure.test
-             [check :refer [quick-check]]]
+  (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check
              [generators :as gen]
              [properties :refer [for-all]]
@@ -36,11 +35,12 @@
   the :name key."
   [spec state]
   (gen/gen-fmap (fn [rose-tree]
-                  (let [command-key (rose/root rose-tree)]
-                    (assoc (assert-val (get (:commands spec) command-key)
-                                       (str "Command " command-key " not found in :commands map"))
+                  (let [command-key (rose/root rose-tree)
+                        value (get (:commands spec) command-key)
+                        value (if (var? value) @value value)]
+                    (assoc (assert-val value (str "Command " command-key " not found in :commands map"))
                            :name command-key)))
-                ((:model/generate-command spec) state)))
+                (u/generate-command-name spec state)))
 
 ;; Don't remove the `size` parameter to this function! It's there so
 ;; we can keep track of how "long" the command list is meant to be
@@ -54,19 +54,27 @@
    (gen/frequency
     [[1 (gen/gen-pure nil)]
      [size (gen-do command <- (generate-command-object spec state)
-                   args-rose <- (u/generate-args command state)
-                   :let [args (rose/root args-rose)]
-                   (if (u/check-precondition command state args)
-                     (gen-do :let [result (->RootVar count)]
-                             roses <- (generate-commands* spec
-                                                          (u/model-make-next-state command state args result)
-                                                          (dec size)
-                                                          (inc count))
-                             (gen/gen-pure (cons (rose/fmap (fn [args]
-                                                              [result (cons command args)])
-                                                            args-rose)
-                                                 roses)))
+                   (if (u/check-requires command state)
+                     (gen-do args-rose <- (u/generate-args command state)
+                             :let [args (rose/root args-rose)]
+                             (if (u/check-precondition command state args)
+                               (gen-do :let [result (->RootVar count)
+                                             next-state (u/model-make-next-state command state args result)]
+                                       roses <- (generate-commands* spec next-state (dec size) (inc count))
+                                       (gen/gen-pure (cons (rose/fmap (fn [args]
+                                                                        [result (cons command args)])
+                                                                      args-rose)
+                                                           roses)))
+                               (generate-commands* spec state size count)))
                      (generate-commands* spec state size count)))]])))
+
+(defn shrink-roses
+  "Shrink the command rose trees (by removing commands and shrinking
+  command arguments)."
+  [roses]
+  (let [singles (rose/remove roses)
+        pairs (mapcat (comp rose/remove vec) singles)]
+    (concat singles pairs)))
 
 (defn concat-command-roses
   "Take a seq of rose trees and concatenate them. Create a vector from
@@ -75,7 +83,7 @@
   [roses]
   (if (seq roses)
     [(apply vector (map rose/root roses))
-     (map concat-command-roses (rose/remove (vec roses)))]
+     (map concat-command-roses (shrink-roses (vec roses)))]
     [[] []]))
 
 (defn generate-commands
@@ -84,24 +92,6 @@
   (gen/gen-bind (gen/sized #(generate-commands* spec state %))
                 (fn [roses]
                   (gen/gen-pure (concat-command-roses roses)))))
-
-(defn run-commands
-  "Run a seq of commands against a live system."
-  [spec command-list]
-  (let [state-fn (or (:real/initial-state spec)
-                     (:initial-state spec)
-                     (constantly nil))
-        setup-fn (:real/setup spec)
-        setup-value (if setup-fn (setup-fn))
-        results (if setup-fn
-                  {(->RootVar setup-name) setup-value})
-        state (if setup-fn
-                (state-fn setup-value)
-                (state-fn))
-        command-results (r/run-commands command-list results state spec)]
-    (if-let [f (:real/cleanup spec)]
-      (f (last (r/extract-states command-results))))
-    command-results))
 
 (defn valid-commands?
   "Verify whether a given list of commands is valid (preconditions all
@@ -131,19 +121,28 @@
        (generate-commands spec)
        (gen/such-that (partial valid-commands? spec))))
 
-(defn spec->property [spec]
-  (for-all [commands (generate-valid-commands spec)]
-    (let [command-results (run-commands spec commands)
-          ex (r/extract-exception command-results)]
-      (cond (r/passed? command-results) true
-            ex (throw ex)
-            :else false))))
+(defn make-failure-exception [results]
+  (ex-info ""
+           {:results results}))
+
+(defn spec->property
+  "Turn a specification into a testable property."
+  ([spec] (spec->property spec {:tries 1}))
+  ([spec {:keys [tries]}]
+   (for-all [commands (generate-valid-commands spec)]
+     (loop [tries (or tries 1)]
+       (if (pos? tries)
+         (let [results (r/run-commands spec commands)]
+           (if (r/passed? results)
+             (recur (dec tries))
+             (throw (make-failure-exception results))))
+         true)))))
 
 (defn format-command [[sym-var [{name :name} _ args] :as cmd]]
   (str (pr-str sym-var) " = " (pr-str (cons name args))))
 
 (defn print-command-results
-  "Print out the results of a `run-commands` call. No commands are
+  "Print out the results of a `r/run-commands` call. No commands are
   actually run, as the argument to this function contains the results
   for each individual command."
   ([results] (print-command-results results false))
@@ -156,11 +155,11 @@
        ;; will see
        (case type
          :postcondition-check
-         (let [[_ cmd _ _ _ _ result] step]
-           (println "  " (format-command cmd) "\t=>" (pr-str result)))
+         (let [[_ _ cmd _ _ _ _ _ str-result] step]
+           (println "  " (format-command cmd) "\t=>" str-result))
          :fail
-         (let [[_ ex] step
-               [pre-type cmd] pre
+         (let [[_ _ _ ex] step
+               [pre-type _ cmd] pre
                location (case pre-type
                           :precondition-check "checking precondition"
                           :run-command "executing command"
@@ -192,18 +191,19 @@
   (when-not (true? (:result results))
     (when first-case?
       (println "First failing test case:")
-      (print-command-results (run-commands spec (-> results :fail first)) stacktraces?)
+      (print-command-results (-> results :result ex-data :results) stacktraces?)
       (println "Shrunk:"))
-    (print-command-results (run-commands spec (-> results :shrunk :smallest first)) stacktraces?)
-    (println "Seed: " (:seed results))))
+    (print-command-results (-> results :shrunk :result ex-data :results) stacktraces?)
+    (println "Seed: " (:seed results))
+    (println "Visited: " (-> results :shrunk :total-nodes-visited))))
 
 (defn run-specification
   "Run a specification. This will convert the spec into a property and
   run it using clojure.test.check/quick-check. This function then
   returns the full quick-check result."
   ([specification] (run-specification specification nil))
-  ([specification {:keys [num-tests max-size seed]}]
+  ([specification {:keys [num-tests max-size seed tries]}]
    (quick-check (or num-tests 100)
-                (spec->property specification)
+                (spec->property specification {:tries tries})
                 :seed seed
                 :max-size (or max-size 200))))

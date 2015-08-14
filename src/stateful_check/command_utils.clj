@@ -1,13 +1,36 @@
 (ns stateful-check.command-utils
-  (:require [clojure.test.check.generators :as gen]))
+  (:require [stateful-check.generator-utils :refer [to-generator]]
+            [clojure.test.check.generators :as gen]
+            [clojure.walk :as walk]))
 
 (defn generate-args
   "Generate the arguments for a command, taking into account whether
   or not the command declares a :model/args function."
   [command state]
-  (if-let [args (:model/args command)]
-    (args state)
-    (gen/return [])))
+  (to-generator (if-let [args (:model/args command)]
+                  (args state))))
+
+(defn check-requires
+  "Check the requirements for a command to be generated at all, taking
+  into account whether or not the command declares a :model/requires
+  function."
+  [command state]
+  (if-let [requires (:model/requires command)]
+    (requires state)
+    true))
+
+(defn generate-command-name
+  "Generate a single command name which is the name of the next
+  command to be run. Generating the rest of the command object is left
+  up to some other process."
+  [spec state]
+  (if-let [generate-command (:model/generate-command spec)]
+    (generate-command state)
+    (if-let [valid-commands (->> (keys (:commands spec))
+                              (filter #(check-requires % state))
+                              seq)]
+      (gen/elements valid-commands)
+      (throw (AssertionError. "All commands failed `:model/requires` check: cannot generate a valid command!")))))
 
 (defn check-precondition
   "Check the precondition for a command, taking into account whether
@@ -61,3 +84,10 @@
   (if-let [postcondition (:real/postcondition spec)]
     (postcondition state)
     true))
+
+(defn run-spec-cleanup
+  "Run the cleanup function for the specification, taking into account
+  whether or not the specification declares a :real/cleanup function."
+  [spec state]
+  (if-let [f (:real/cleanup spec)]
+    (f state)))

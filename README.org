@@ -12,142 +12,144 @@ A [[http://clojure.org][Clojure]] library designed to help with testing stateful
 
 * Example
 
-To see an example of ~stateful-check~ to test a simple system, see the
-[[file:doc/queue.org][queue example in docs/]].
+As an example, let's implement a simple mutable queue and a
+specification to test it.
 
-Of particular note is how a test is run and what happens if (or
-really, when) it fails:
-#+BEGIN_SRC clojure
-  (is (specification-correct? queue-spec {:seed 1417059242645}))
-  ;; 
-  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init1067629020891437332.clj:1)
-  ;;    #<0> = (:new)     => #<Atom@53df198e: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-  ;;    #<2> = (:push #<0> 0)     => nil
-  ;;    #<3> = (:pop #<0>)        => #<PersistentQueue clojure.lang.PersistentQueue@1>
+To begin with, let's pull in the dependencies we'll need later.
+#+BEGIN_SRC clojure :results silent :session example
+  (ns stateful-check.example
+    (:require [clojure.test :refer [is]]
+              [clojure.test.check.generators :as gen]
+              [stateful-check.core :refer [specification-correct?]]))
+#+END_SRC
+
+** Queue implementation
+
+For our queue, let's just wrap a ~clojure.lang.PersistentQueue~ in an
+atom, and have our push/pop operations act on one of these atoms.
+#+BEGIN_SRC clojure :results silent :session example
+  (defn new-queue []
+    (atom clojure.lang.PersistentQueue/EMPTY))
+  (defn push-queue [queue value]
+    (swap! queue conj value))
+  (defn pop-queue [queue]
+    (swap! queue pop))
+#+END_SRC
+
+There we go, easy! Now, let's write some specifications for the
+push/pop operations (we'll treat ~new-queue~ as a setup operation, so
+we don't need a specification for it).
+
+For the following commands we're going to model the state of the real
+queue by a vector under the key ~:elements~ in the state. We'll ~conj~
+onto the end of the vector to model calling ~push-queue~, and we'll
+~(comp vec next)~ to remove the element at the front of the vector to
+model calling ~pop-queue~.
+
+** Command: ~push-queue~
+
+Let's start with ~push-queue~:
+#+BEGIN_SRC clojure :results silent :session example
+  (def push-queue-specification
+    {:model/args (fn [state]
+                   [(:queue state) gen/nat])
+     :real/command #'push-queue
+     :next-state (fn [state [_ val] _]
+                   (update-in state [:elements] conj val))})
+#+END_SRC
+
+This specification tells the system how to generate arguments for this
+command, how to run the command, and what the expected effect on the
+state of the system is. In this case, we expect our command to take
+the queue under test and a natural number and we expect it to add that
+number to the end of the ~:elements~ collection (which will be a
+vector) in the state.
+
+** Command: ~pop-queue~
+
+Now how about ~pop-queue~?
+#+BEGIN_SRC clojure :results silent :session example
+  (def pop-queue-specification
+    {:model/requires (fn [state]
+                       (seq (:elements state)))
+     :model/args (fn [state]
+                   [(:queue state)])
+     :real/command #'pop-queue
+     :next-state (fn [state _ _]
+                   (update-in state [:elements] (comp vec next)))
+     :real/postcondition (fn [prev-state _ _ val]
+                           (= (-> prev-state :elements first)
+                              val))})
+#+END_SRC
+
+This command specification specifies that we expect ~pop~ to modify
+the state by removing the first element from the ~:elements~
+collection (leaving it as a vector). The postcondition then asserts
+that the result of the command must be equal to the first element from
+the old ~:elements~ collection (so we pop off the front).
+
+** Specification: ~queue-spec~
+
+Now we have a specification for our two commands, let's put them
+together in a system specification.
+
+#+BEGIN_SRC clojure :results silent :session example
+  (def queue-spec
+    {:commands {:push #'push-queue-specification
+                :pop #'pop-queue-specification}
+     :real/setup #'new-queue
+     :initial-state (fn [queue] {:queue queue, :elements []})})
+#+END_SRC
+
+This system specification tells the system how to run our command
+specifications. It specifies the initial state of the system, which
+our other commands then rely on (ie. the ~:queue~ and ~:elements~ keys
+are used by our command specifications).
+
+We can now run this specification with:
+#+BEGIN_SRC clojure :results output :session example
+  (is (specification-correct? queue-spec))
+  ;;
+  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init3821556149176680553.clj:1)
+  ;;    #<1> = (:push #<setup> 0)         => #<PersistentQueue clojure.lang.PersistentQueue@1f>
+  ;;    #<2> = (:pop #<setup>)    => #<PersistentQueue clojure.lang.PersistentQueue@1>
   ;; Error while checking postcondition
   ;; Seed:  1417059242645
-  ;; 
+  ;; Visited:  6
+  ;;
   ;; expected: :pass
   ;;   actual: :fail
 #+END_SRC
 
+Oh no! Our test has failed! We've got a nice print-out of what
+commands can be executed to provoke this failure, and what values were
+seen during the actual failed execution.
+
+As we can see, our queue fails when we ~:push~ zero, then ~:pop~. If
+we look at the output of the ~:pop~ command we can see that the value
+it's returned isn't at all what we expected! We expected it to return
+~0~, because that's what we pushed into the queue. Instead, it's
+returned a queue object! Our ~pop-queue~ function is quite broken.
+
+Let's fix it:
+#+BEGIN_SRC clojure :results silent :session example
+  (defn pop-queue [queue]
+    (let [value (peek @queue)]
+      (swap! queue pop)
+      value))
+#+END_SRC
+
+Now we can try re-running out tests:
+#+BEGIN_SRC clojure :results output :session example
+  (is (specification-correct? queue-spec))
+#+END_SRC
+
+No output? That's a success!
+
 * Specifications
 
-When reading a ~stateful-check~ specification there are two main types
-of keys: ~model~ and ~real~.
-
-- ~model~ keys are ones which are keywords in the ~model~ namespace
-  (that is, ~:model/X~). They deal exclusively with the abstract state
-  of the system, and are only run during command generation. They
-  should have no side effects. They are always provided with symbolic
-  values representing the results of real commands.
-
-- ~real~ keys are ones which are keywords in the ~real~ namespace
-  (that is, ~:real/X~). They deal with the real state of the system
-  and are only run during command execution. They can perform any
-  side-effecting operation and are given the actual results of
-  previous commands.
-
-The distinction between the two types of keys is very important. While
-values can flow from the ~model~ functions to the ~real~ functions,
-they cannot flow the other way. ~model~ functions are only given
-placeholders representing ~real~ values.
-
-** Model specifications
-
-A model specification is a map with two required keys:
-
-- ~:commands~ is a map with values which are command specifications
-  (see below). This map contains all the operations which
-  ~stateful-check~ knows how to perform. The keys to this map are
-  opaque to ~stateful-check~, but are used in the
-  ~:model/generate-command~ function (and must be printable).
-
-- ~:model/generate-command~ is a function from an abstract state to a
-  generator. In the interests of efficiency this function should
-  attempt to create a generator which will only produce valid
-  commands. A generated command is a key into the ~:commands~ map.
-
-There are six optional keys:
-
-- ~:model/initial-state~ is a function to generate the initial state
-  of the abstract system. If the spec also has a ~:real/setup~
-  function then ~:model/initial-state~ will be provided with an
-  argument which is a symbolic value representing the return value of
-  the ~:real/setup~ function. If no ~:real/setup~ function can be
-  found then ~:model/initial-state~ will be called with no arguments.
-
-- ~:real/initial-state~ is the same as the ~:model/initial-state~
-  function, except for the concrete command state. If a ~:real/setup~
-  key exists then ~:real/initial-state~ will be passed the return
-  value of the ~:real/setup~ function. Otherwise, it will be called
-  with no arguments.
-
-- ~:initial-state~ is a shortcut for defining both
-  ~:model/initial-state~ and ~:real/initial-state~ in instances where
-  the difference is irrelevant. It will be provided with either an
-  abstract value or a concrete value, depending on when it is
-  run. Precedence is given to the namespaced keys if they are present.
-
-- ~:real/setup~ is a function of zero arguments which is called prior
-  to any commands being run in an execution. Its return value is
-  passed to the ~:real/initial-state~ function, and is available in
-  symbolic form to the ~:model/initial-state~ function.
-
-- ~:real/cleanup~ is a function of the state which can perform any
-  cleanup operations required. Its return value is ignored.
-
-- ~:real/postcondition~ is a function of the state which can perform
-  general postcondition checking. This is run after each call to
-  ~:real/next-state~ with the result of the transformation. This is
-  intended to aid in testing things which must always be true, to
-  avoid having to repeat them in each postcondition.
-
-** Command specifications
-
-A command specification is a map with one required key:
-
-- ~:real/command~ is a function to perform an operation on the real
-  system.
-
-There are six optional keys:
-
-- ~:model/args~ is a function from state to a generator which will
-  generate a vector of arguments.
-
-- ~:model/precondition~ is a function from the state and the generated
-  arguments to a value indicating whether this command is valid to run
-  at this stage. If the return value of this function is falsey then
-  this command is considered invalid and this sequence will not be
-  run.
-
-- ~:model/next-state~ is a function from the state, the arguments and
-  an abstract result placeholder to the next state for the system.
-
-- ~:real/next-state~ is a function from the state, the arguments and a
-  concrete result to the next state for the system.
-
-- ~:next-state~ is a shortcut for specifying ~:model/next-state~ and
-  ~:real/next-state~ to be the same function. Precedence is given to
-  the namespaced keys if they are present.
-
-- ~:real/postcondition~ is a function from the previous state, the
-  next state, the arguments and a concrete result to a value
-  indicating whether this command succeeded. If the return value of
-  this function is falsey then this command (and hence this sequence
-  of commands) is considered to be failed.
-
-If any of these functions throw an exception it will provoke a test
-failure.
-
-The ~model~ namespaced keys are given an abstract state object. Any
-results of commands will be opaque and abstract and the real state of
-the system cannot be queried.
-
-The ~real~ namespaced keys are given an actual, concrete state of the
-system. They are only called during the actual execution of the
-commands. Any results of commands will be the actual results of
-running those commands.
+For a detailed description of how a ~stateful-check~ specification has
+to be structured, see [[file:doc/specification.org][the specification document]].
 
 * Related work
 
