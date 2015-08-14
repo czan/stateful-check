@@ -40,6 +40,12 @@ There we go, easy! Now, let's write some specifications for the
 push/pop operations (we'll treat ~new-queue~ as a setup operation, so
 we don't need a specification for it).
 
+For the following commands we're going to model the state of the real
+queue by a vector under the key ~:elements~ in the state. We'll ~conj~
+onto the end of the vector to model calling ~push-queue~, and we'll
+~(comp vec next)~ to remove the element at the front of the vector to
+model calling ~pop-queue~.
+
 ** Command: ~push-queue~
 
 Let's start with ~push-queue~:
@@ -56,8 +62,8 @@ This specification tells the system how to generate arguments for this
 command, how to run the command, and what the expected effect on the
 state of the system is. In this case, we expect our command to take
 the queue under test and a natural number and we expect it to add that
-number to the ~:elments~ collection (which will end up being a vector)
-in the state.
+number to the end of the ~:elements~ collection (which will be a
+vector) in the state.
 
 ** Command: ~pop-queue~
 
@@ -80,7 +86,7 @@ This command specification specifies that we expect ~pop~ to modify
 the state by removing the first element from the ~:elements~
 collection (leaving it as a vector). The postcondition then asserts
 that the result of the command must be equal to the first element from
-the old ~:elements~ collection.
+the old ~:elements~ collection (so we pop off the front).
 
 ** Specification: ~queue-spec~
 
