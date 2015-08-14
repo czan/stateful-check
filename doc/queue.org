@@ -1,4 +1,4 @@
-#+TITLE: A basic queue example
+#+TITLE: A simple queue example
 
 #+PROPERTY: header-args:clojure :session example :results silent
 
@@ -11,7 +11,6 @@ we'll need later.
   (ns stateful-check.example
     (:require [clojure.test :refer [is]]
               [clojure.test.check.generators :as gen]
-              [clojure.test.check :refer [quick-check]]
               [stateful-check.core :refer [specification-correct?]]))
 #+END_SRC
 

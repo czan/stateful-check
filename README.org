@@ -12,24 +12,133 @@ A [[http://clojure.org][Clojure]] library designed to help with testing stateful
 
 * Example
 
-To see an example of ~stateful-check~ to test a simple system, see the
-[[file:doc/queue.org][queue example in docs/]].
+As an example, let's implement a simple mutable queue and a
+specification to test it.
 
-Of particular note is how a test is run and what happens if (or
-really, when) it fails:
-#+BEGIN_SRC clojure
-  (is (specification-correct? queue-spec {:seed 1417059242645}))
-  ;; 
-  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init1067629020891437332.clj:1)
-  ;;    #<0> = (:new)     => #<Atom@53df198e: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-  ;;    #<2> = (:push #<0> 0)     => nil
-  ;;    #<3> = (:pop #<0>)        => #<PersistentQueue clojure.lang.PersistentQueue@1>
+To begin with, let's pull in the dependencies we'll need later.
+#+BEGIN_SRC clojure :results silent :session example
+  (ns stateful-check.example
+    (:require [clojure.test :refer [is]]
+              [clojure.test.check.generators :as gen]
+              [stateful-check.core :refer [specification-correct?]]))
+#+END_SRC
+
+** Queue implementation
+
+For our queue, let's just wrap a ~clojure.lang.PersistentQueue~ in an
+atom, and have our push/pop operations act on one of these atoms.
+#+BEGIN_SRC clojure :results silent :session example
+  (defn new-queue []
+    (atom clojure.lang.PersistentQueue/EMPTY))
+  (defn push-queue [queue value]
+    (swap! queue conj value))
+  (defn pop-queue [queue]
+    (swap! queue pop))
+#+END_SRC
+
+There we go, easy! Now, let's write some specifications for the
+push/pop operations (we'll treat ~new-queue~ as a setup operation, so
+we don't need a specification for it).
+
+** Command: ~push-queue~
+
+Let's start with ~push-queue~:
+#+BEGIN_SRC clojure :results silent :session example
+  (def push-queue-specification
+    {:model/args (fn [state]
+                   [(:queue state) gen/nat])
+     :real/command #'push-queue
+     :next-state (fn [state [_ val] _]
+                   (update-in state [:elements] conj val))})
+#+END_SRC
+
+This specification tells the system how to generate arguments for this
+command, how to run the command, and what the expected effect on the
+state of the system is. In this case, we expect our command to take
+the queue under test and a natural number and we expect it to add that
+number to the ~:elments~ collection (which will end up being a vector)
+in the state.
+
+** Command: ~pop-queue~
+
+Now how about ~pop-queue~?
+#+BEGIN_SRC clojure :results silent :session example
+  (def pop-queue-specification
+    {:model/requires (fn [state]
+                       (seq (:elements state)))
+     :model/args (fn [state]
+                   [(:queue state)])
+     :real/command #'pop-queue
+     :next-state (fn [state _ _]
+                   (update-in state [:elements] (comp vec next)))
+     :real/postcondition (fn [prev-state _ _ val]
+                           (= (-> prev-state :elements first)
+                              val))})
+#+END_SRC
+
+This command specification specifies that we expect ~pop~ to modify
+the state by removing the first element from the ~:elements~
+collection (leaving it as a vector). The postcondition then asserts
+that the result of the command must be equal to the first element from
+the old ~:elements~ collection.
+
+** Specification: ~queue-spec~
+
+Now we have a specification for our two commands, let's put them
+together in a system specification.
+
+#+BEGIN_SRC clojure :results silent :session example
+  (def queue-spec
+    {:commands {:push #'push-queue-specification
+                :pop #'pop-queue-specification}
+     :real/setup #'new-queue
+     :initial-state (fn [queue] {:queue queue, :elements []})})
+#+END_SRC
+
+This system specification tells the system how to run our command
+specifications. It specifies the initial state of the system, which
+our other commands then rely on (ie. the ~:queue~ and ~:elements~ keys
+are used by our command specifications).
+
+We can now run this specification with:
+#+BEGIN_SRC clojure :results output :session example
+  (is (specification-correct? queue-spec))
+  ;;
+  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init3821556149176680553.clj:1)
+  ;;    #<1> = (:push #<setup> 0)         => #<PersistentQueue clojure.lang.PersistentQueue@1f>
+  ;;    #<2> = (:pop #<setup>)    => #<PersistentQueue clojure.lang.PersistentQueue@1>
   ;; Error while checking postcondition
   ;; Seed:  1417059242645
-  ;; 
+  ;; Visited:  6
+  ;;
   ;; expected: :pass
   ;;   actual: :fail
 #+END_SRC
+
+Oh no! Our test has failed! We've got a nice print-out of what
+commands can be executed to provoke this failure, and what values were
+seen during the actual failed execution.
+
+As we can see, our queue fails when we ~:push~ zero, then ~:pop~. If
+we look at the output of the ~:pop~ command we can see that the value
+it's returned isn't at all what we expected! We expected it to return
+~0~, because that's what we pushed into the queue. Instead, it's
+returned a queue object! Our ~pop-queue~ function is quite broken.
+
+Let's fix it:
+#+BEGIN_SRC clojure :results silent :session example
+  (defn pop-queue [queue]
+    (let [value (peek @queue)]
+      (swap! queue pop)
+      value))
+#+END_SRC
+
+Now we can try re-running out tests:
+#+BEGIN_SRC clojure :results output :session example
+  (is (specification-correct? queue-spec))
+#+END_SRC
+
+No output? That's a success!
 
 * Specifications
 
