@@ -2,14 +2,10 @@
   (:require [clojure.test.check.generators :as gen]))
 
 (defn is-let? [forms]
-  (and (keyword? (first forms))
-       (nil? (namespace (first forms)))
-       (= (name (first forms)) "let")))
+  (= :let (first forms)))
 
 (defn is-bind? [forms]
-  (and (symbol? (second forms))
-       (nil? (namespace (second forms)))
-       (= (name (second forms)) "<-")))
+  (= '<- (second forms)))
 
 (defn gdo* [forms bind]
   (cond
