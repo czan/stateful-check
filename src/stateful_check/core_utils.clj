@@ -1,5 +1,6 @@
 (ns stateful-check.core-utils
   (:require [clojure.test.check :refer [quick-check]]
+            [clojure.test.check.rose-tree :refer [make-rose]]
             [clojure.test.check
              [generators :as gen]
              [properties :refer [for-all]]
@@ -62,7 +63,7 @@
                                              next-state (u/model-make-next-state command state args result)]
                                        roses <- (generate-commands* spec next-state (dec size) (inc count))
                                        (gen/gen-pure (cons (rose/fmap (fn [args]
-                                                                        [result (cons command args)])
+                                                                        (make-rose result (cons command args)))
                                                                       args-rose)
                                                            roses)))
                                (generate-commands* spec state size count)))
@@ -82,9 +83,9 @@
   element in turn."
   [roses]
   (if (seq roses)
-    [(apply vector (map rose/root roses))
-     (map concat-command-roses (shrink-roses (vec roses)))]
-    [[] []]))
+    (make-rose (apply vector (map rose/root roses))
+               (map concat-command-roses (shrink-roses (vec roses))))
+    (make-rose [] [])))
 
 (defn generate-commands
   "Generate a seq of commands from a spec and an initial state."
