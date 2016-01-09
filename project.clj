@@ -1,4 +1,4 @@
-(defproject org.clojars.czan/stateful-check "0.3.1"
+(defproject mdrogalis/stateful-check "0.3.2"
   :description "Stateful generative testing in clojure"
   :url "https://github.com/czan/stateful-check"
   :license {:name "Eclipse Public License"
