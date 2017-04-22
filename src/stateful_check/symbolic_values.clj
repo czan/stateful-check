@@ -4,7 +4,7 @@
   (get-real-value [this real-values]
     "Lookup the value of this symbolic value in a real-values map")
   (valid? [this results]
-    "Detemine whether this symbolic value can be legally looked up in the results map"))
+    "Determine whether this symbolic value can be legally looked up in the results map"))
 
 
 
