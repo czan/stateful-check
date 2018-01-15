@@ -1,7 +1,19 @@
 (ns stateful-check.command-utils
   (:require [stateful-check.generator-utils :refer [to-generator]]
+            [stateful-check.symbolic-values :refer [valid?]]
             [clojure.test.check.generators :as gen]
             [clojure.walk :as walk]))
+
+(defn valid-args? [args bindings]
+  (let [result (volatile! true)]
+    (walk/postwalk (fn [arg]
+                     (when (and (symbol? arg)
+                                (.startsWith (name arg) "result"))
+                       (vswap! result
+                               #(and %1 %2)
+                               (contains? bindings arg))))
+                   args)
+    @result))
 
 (defn generate-args
   "Generate the arguments for a command, taking into account whether

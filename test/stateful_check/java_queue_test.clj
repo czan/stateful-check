@@ -130,11 +130,13 @@
               :count #'count-queue-command}
    :real/setup #(reset! array clojure.lang.PersistentQueue/EMPTY)
    :model/generate-command (fn [state]
-                             (gen/frequency [[1 (gen/return :new)]
-                                             [5 (gen/return :push)]
-                                             [5 (gen/return :peek)]
-                                             [5 (gen/return :pop)]
-                                             [5 (gen/return :count)]]))})
+                             (if (nil? state)
+                               (gen/return :new)
+                               (gen/frequency [[1 (gen/return :new)]
+                                               [5 (gen/return :push)]
+                                               [5 (gen/return :peek)]
+                                               [5 (gen/return :pop)]
+                                               [5 (gen/return :count)]])))})
 
 (def array-queue-specification
   {:commands {:new #'new-array-queue-command
@@ -143,11 +145,13 @@
               :pop #'pop-queue-command
               :count #'count-queue-command}
    :model/generate-command (fn [state]
-                             (gen/frequency [[1 (gen/return :new)]
-                                             [5 (gen/return :push)]
-                                             [5 (gen/return :peek)]
-                                             [5 (gen/return :pop)]
-                                             [5 (gen/return :count)]]))})
+                             (if (nil? state)
+                               (gen/return :new)
+                               (gen/frequency [[1 (gen/return :new)]
+                                               [5 (gen/return :push)]
+                                               [5 (gen/return :peek)]
+                                               [5 (gen/return :pop)]
+                                               [5 (gen/return :count)]])))})
 
 (deftest shared-queue-test
   (is (not (specification-correct? shared-queue-specification))))

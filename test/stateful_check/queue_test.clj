@@ -12,6 +12,11 @@
 
 (defn push-queue [queue val]
   (swap! queue conj val)
+  ;; (let [q @queue]
+  ;;   ;; look, a race condition!
+  ;;   ;; this is equivalent to (swap! queue conj val)
+  ;;   ;; except with a race condition
+  ;;   (reset! queue (conj q val)))
   nil)
 
 (defn peek-queue [queue]
@@ -94,5 +99,6 @@
 (deftest queue-test
   (let [val @queues-in-use]
     (is (specification-correct? queue-specification))
+    (is (specification-correct? queue-specification {:parallel-factor 2, :max-tries 10}))
     (is (not (specification-correct? failing-queue-specification)))
     (is (= val @queues-in-use) "setup/cleanup should both be run for all tests (pass and fail)")))
