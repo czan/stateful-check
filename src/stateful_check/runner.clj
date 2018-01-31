@@ -24,6 +24,8 @@
                       (u/run-command cmd-obj (replacer [] bindings)))]))
         cmd-objs))
 
+(defrecord CaughtException [exception])
+
 (defn run-sequential-runners [runners bindings]
   (reduce (fn [[bindings trace str-trace] [handle f]]
             (try
@@ -33,8 +35,8 @@
                  (conj str-trace (pr-str value))])
               (catch Exception exception
                 (reduced [bindings
-                          (conj trace exception)
-                          (conj str-trace (pr-str exception))
+                          (conj trace (->CaughtException exception))
+                          (conj str-trace exception)
                           exception]))))
           [bindings [] []] runners))
 
@@ -62,11 +64,13 @@
 
 (defn valid-execution? [cmds-and-traces state bindings]
   (boolean (reduce (fn [[state bindings] [[handle cmd-obj & args] result]]
-                     (let [replacer (args-replacer args)
-                           replaced-args (replacer [] bindings)
-                           next-state (u/real-make-next-state cmd-obj state replaced-args result)]
-                       (if (u/check-postcondition cmd-obj state next-state replaced-args result)
-                         [next-state
-                          (assoc bindings handle result)]
-                         (reduced false))))
+                     (if (instance? CaughtException result)
+                       (reduced false)
+                       (let [replacer (args-replacer args)
+                             replaced-args (replacer [] bindings)
+                             next-state (u/real-make-next-state cmd-obj state replaced-args result)]
+                         (if (u/check-postcondition cmd-obj state next-state replaced-args result)
+                           [next-state
+                            (assoc bindings handle result)]
+                           (reduced false)))))
                    [state bindings] cmds-and-traces)))

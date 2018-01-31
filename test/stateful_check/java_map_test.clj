@@ -52,5 +52,7 @@
 (deftest ^:slow java-map-fails-concurrently
   (is (specification-correct? java-map-specification))
   (is (not (specification-correct? java-map-specification
-                                   {:parallel-factor 2
-                                    :max-tries 50}))))
+                                   {:gen {:threads 2
+                                          :max-length 5}
+                                    :run {:max-tries 50}
+                                    :report {:first-case? true}}))))
