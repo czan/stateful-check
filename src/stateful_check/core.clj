@@ -7,19 +7,6 @@
             [stateful-check.runner :as r]
             [stateful-check.core-utils :as utils]))
 
-(defn ^{:deprecated "0.3.0"} reality-matches-model
-  "Create a property which checks a given stateful-check
-  specification."
-  [spec]
-  (utils/spec->property spec))
-
-(defn print-test-results
-  {:deprecated "0.3.0",
-   :doc (:doc (meta #'utils/print-test-results))
-   :arglists (:arglists (meta #'utils/print-test-results))}
-  [spec results options]
-  (utils/print-test-results spec results options))
-
 (defn make-failure-exception [sequential-trace parallel-trace]
   (ex-info "Generative test failed."
            {:sequential sequential-trace
