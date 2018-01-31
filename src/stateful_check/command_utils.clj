@@ -1,21 +1,23 @@
 (ns stateful-check.command-utils
-  (:require [stateful-check.generator-utils :refer [to-generator]]
-            [stateful-check.symbolic-values :refer [valid?]]
+  (:require [stateful-check.symbolic-values :refer [valid?]]
             [clojure.test.check.generators :as gen]
             [clojure.walk :as walk]))
 
-(defn valid-args? [args bindings]
-  (let [result (volatile! true)]
-    (walk/postwalk (fn [arg]
-                     (when (and (symbol? arg)
-                                (.startsWith (name arg) "result"))
-                       (vswap! result
-                               #(and %1 %2)
-                               (contains? bindings arg))))
-                   args)
-    @result))
+(defn to-generator
+  "Convert a value into a generator, recursively. This means:
+    + generator? -> the value
+    + sequential? -> gen/tuple with each sub-value already processed
+    + map? -> gen/hash-map with each value (not keys) already processed
+    + otherwise -> gen/return the value"
+  [value]
+  (cond (gen/generator? value) value
+        (sequential? value) (apply gen/tuple (map to-generator value))
+        (map? value) (apply gen/hash-map (mapcat (fn [[k v]]
+                                                   [k (to-generator v)])
+                                                 value))
+        :else (gen/return value)))
 
-(defn generate-args
+(defn args-gen
   "Generate the arguments for a command, taking into account whether
   or not the command declares a :model/args function."
   [command state]
@@ -30,19 +32,6 @@
   (if-let [requires (:model/requires command)]
     (requires state)
     true))
-
-(defn generate-command-name
-  "Generate a single command name which is the name of the next
-  command to be run. Generating the rest of the command object is left
-  up to some other process."
-  [spec state]
-  (if-let [generate-command (:model/generate-command spec)]
-    (generate-command state)
-    (if-let [valid-commands (->> (keys (:commands spec))
-                              (filter #(check-requires % state))
-                              seq)]
-      (gen/elements valid-commands)
-      (throw (AssertionError. "All commands failed `:model/requires` check: cannot generate a valid command!")))))
 
 (defn check-precondition
   "Check the precondition for a command, taking into account whether
@@ -87,19 +76,3 @@
   (if-let [postcondition (:real/postcondition command)]
     (postcondition prev-state next-state args result)
     true))
-
-(defn check-spec-postcondition
-  "Check the postcondition for the specification, taking into account
-  whether or not the specification declares a :real/postcondition
-  function."
-  [spec state]
-  (if-let [postcondition (:real/postcondition spec)]
-    (postcondition state)
-    true))
-
-(defn run-spec-cleanup
-  "Run the cleanup function for the specification, taking into account
-  whether or not the specification declares a :real/cleanup function."
-  [spec state]
-  (if-let [f (:real/cleanup spec)]
-    (f state)))

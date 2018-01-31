@@ -2,7 +2,6 @@
   (:require [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]
             [stateful-check.symbolic-values :as sv]
-            [stateful-check.generator-utils :as gu]
             [stateful-check.command-utils :as u]))
 
 (def setup-var (sv/->RootVar "setup"))
@@ -30,44 +29,50 @@
                 (fn [cmd-obj-rose]
                   (let [cmd-obj (rose/root cmd-obj-rose)]
                     (gen/fmap #(cons cmd-obj %)
-                              (u/generate-args cmd-obj state))))))
+                              (u/args-gen cmd-obj state))))))
 
-(defn- command-sequence-tree-gen [spec state length var-suffix count]
+(defn- command-sequence-tree-gen [spec state vars]
   (gen/frequency
    [[1 (gen/gen-pure [[] state])]
-    [length (gen/gen-bind (command-gen spec state)
-                          (fn [cmd-and-args-tree]
-                            (let [[cmd-obj & args] (rose/root cmd-and-args-tree)
-                                  result (sv/->RootVar (if var-suffix
-                                                         (str count var-suffix)
-                                                         (str count)))]
-                              (if (u/check-precondition cmd-obj state args)
-                                (let [next-state (u/model-make-next-state cmd-obj state args result)]
-                                  (gen/gen-bind (command-sequence-tree-gen spec next-state (dec length) var-suffix (inc count))
-                                                (fn [[cmd-list-tail-tree next-next-state]]
-                                                  (gen/gen-pure [(cons (rose/fmap #(cons result %)
-                                                                                  cmd-and-args-tree)
-                                                                       cmd-list-tail-tree)
-                                                                 next-next-state]))))
-                                (command-sequence-tree-gen spec state length var-suffix count)))))]]))
+    [(count vars) (gen/gen-bind (command-gen spec state)
+                                (fn [cmd-and-args-tree]
+                                  (let [[cmd-obj & args] (rose/root cmd-and-args-tree)
+                                        result (first vars) ;; (sv/->RootVar (if var-suffix
+                                        ;;       (str count var-suffix)
+                                        ;;       (str count)))
+                                        ]
+                                    (if (u/check-precondition cmd-obj state args)
+                                      (let [next-state (u/model-make-next-state cmd-obj state args result)]
+                                        (gen/gen-bind (command-sequence-tree-gen spec next-state (next vars))
+                                                      (fn [[cmd-list-tail-tree next-next-state]]
+                                                        (gen/gen-pure [(cons (rose/fmap #(cons result %)
+                                                                                        cmd-and-args-tree)
+                                                                             cmd-list-tail-tree)
+                                                                       next-next-state]))))
+                                      (command-sequence-tree-gen spec state vars)))))]]))
 
 ;; if the test requires more than 26 threads then I am impressed
 (def ^:private thread-names "abcdefghijklmnopqrstuvwxzy")
+
+(defn index->letter [n]
+  (nth thread-names n))
+
+(defn make-vars [length thread-id]
+  (map (fn [i] (sv/->RootVar (str (inc i)
+                                 (when thread-id
+                                   (index->letter thread-id)))))
+       (range length)))
 
 (defn- parallel-command-sequence-gen [spec state {:keys [sequential-length parallel-length parallel-threads]}]
   (letfn [(parallel-commands [n state]
             (if (zero? n)
               (gen/gen-pure [])
-              (gen/gen-bind (command-sequence-tree-gen spec
-                                                       state
-                                                       parallel-length
-                                                       (nth thread-names (dec n))
-                                                       1)
+              (gen/gen-bind (command-sequence-tree-gen spec state (make-vars parallel-length (dec n)))
                             (fn [[tree state]]
                               (gen/gen-bind (parallel-commands (dec n) state)
                                             (fn [other-trees]
                                               (gen/gen-pure (conj other-trees (vec tree)))))))))]
-    (gen/gen-bind (command-sequence-tree-gen spec state sequential-length nil 1)
+    (gen/gen-bind (command-sequence-tree-gen spec state (make-vars sequential-length nil))
                   (fn [[sequential-trees state]]
                     (gen/gen-bind (parallel-commands parallel-threads state)
                                   (fn [parallel-trees]
@@ -81,24 +86,27 @@
      (rose/make-rose {:sequential (mapv rose/root sequential)
                       :parallel (mapv #(mapv rose/root %) parallel)}
                      (concat
-                      (for [[i thread] (map vector (range) parallel)]
-                        ;; pull the first command into the sequential prefix
-                        (shrink-parallel-command-sequence (conj sequential (first thread))
-                                                          (update parallel i (comp vec next))))
                       (for [sequential (rose/remove sequential)]
+                        ;; remove a command from the sequential prefix
                         (shrink-parallel-command-sequence sequential parallel))
                       (for [[i thread] (map vector (range) parallel)
                             shrunk-thread (rose/remove thread)]
+                        ;; remove a command from a parallel thread
                         (shrink-parallel-command-sequence sequential
                                                           (assoc parallel i shrunk-thread)))
-                      (for [sequential (rose/remove sequential)
-                            sequential (rose/remove sequential)]
-                        (shrink-parallel-command-sequence sequential parallel))
-                      (for [[i thread] (map vector (range) parallel)
-                            shrunk-thread (rose/remove thread)
-                            shrunk-thread (rose/remove thread)]
-                        (shrink-parallel-command-sequence sequential
-                                                          (assoc parallel i shrunk-thread))))))))
+                      (for [[i thread] (map vector (range) parallel)]
+                        ;; pull one of the first parallel commands into the sequential prefix
+                        (shrink-parallel-command-sequence (conj sequential (first thread))
+                                                          (update parallel i (comp vec next))))
+                      ;; (for [sequential (rose/remove sequential)
+                      ;;       sequential (rose/remove sequential)]
+                      ;;   (shrink-parallel-command-sequence sequential parallel))
+                      ;; (for [[i thread] (map vector (range) parallel)
+                      ;;       shrunk-thread (rose/remove thread)
+                      ;;       shrunk-thread (rose/remove thread)]
+                      ;;   (shrink-parallel-command-sequence sequential
+                      ;;                                     (assoc parallel i shrunk-thread)))
+                      )))))
 
 (defn- valid-commands? [cmd-objs state bindings]
   (boolean (reduce (fn [[state bindings] [handle cmd-obj & args]]
@@ -126,7 +134,7 @@
                (range) parallel)))))
 
 (defn commands-gen [spec {:keys [such-that-tries parallel-factor] :as options}]
-  "options => {:keys [sequential-length parallel-length parallel-threads]}"
+  ;; options => {:keys [sequential-length parallel-length parallel-threads]}
   (let [init-state-fn (or (:model/initial-state spec)
                           (:initial-state spec)
                           (constantly nil))
@@ -140,12 +148,14 @@
                   0
                   parallel-factor)]
     (gen/such-that (fn [cmds]
-                     ;; (print (count (:sequential cmds)) (map count (:parallel cmds)))
-                     ;; (flush)
-                     (let [x (every? #(valid-commands? % init-state init-bindings)
-                                     (every-interleaving cmds))]
-                       ;; (println " ... done")
-                       x))
+                     ;; we need to generate lists of commands that are
+                     ;; valid no matter how they're executed (assuming
+                     ;; each command is atomic), that way every
+                     ;; possible execution is okay and so if we have
+                     ;; execution traces which don't match any of the
+                     ;; interleaving options then it fails the test
+                     (every? #(valid-commands? % init-state init-bindings)
+                             (every-interleaving cmds)))
                    (gen/sized (fn [size]
                                 (->> (parallel-command-sequence-gen spec
                                                                     init-state
