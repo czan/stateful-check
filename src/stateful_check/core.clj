@@ -131,7 +131,8 @@
                        :actual true})
          (t/do-report {:type :fail,
                        :message (with-out-str
-                                  (println ~msg)
+                                  ~(when msg
+                                     `(println ~msg))
                                   ~(when (get-in options [:report :first-case?] false)
                                      `(print-execution (ex-data ~result-sym)
                                                        ~(get-in options [:report :stacktrace?] false)))
