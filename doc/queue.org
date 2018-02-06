@@ -138,7 +138,7 @@ abstract state to a generator which will generate a new command.
 Let's see what happens when we run this specification:
 
 #+BEGIN_SRC clojure :results replace output
-  (is (specification-correct? queue-spec {:seed 1438362541481}))
+  (is (specification-correct? queue-spec {:run {:seed 1438362541481}}))
   ;;
   ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init3962045565695936929.clj:1)
   ;;    #<0> = (:new)     => #<Atom@766af535: #<PersistentQueue clojure.lang.PersistentQueue@1>>

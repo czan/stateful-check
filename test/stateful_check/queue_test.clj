@@ -109,8 +109,7 @@
   (let [val @queues-in-use]
     (is (specification-correct? queue-specification))
     (is (specification-correct? queue-specification {:gen {:threads 2
-                                                           :max-length {:sequential 10
-                                                                        :parallel 4}}
+                                                           :max-length 10}
                                                      :run {:max-tries 10}}))
     (is (= val @queues-in-use) "setup/cleanup should both be run for all tests (pass and fail)")))
 
@@ -119,7 +118,7 @@
     (is (not (specification-correct? failing-queue-specification)))
     (is (= val @queues-in-use) "setup/cleanup should both be run for all tests (pass and fail)")))
 
-(deftest ^:slow parallel-failing-queue-test
+(deftest parallel-failing-queue-test
   (let [val @queues-in-use]
     (is (specification-correct? parallel-failing-queue-specification))
     (is (not (specification-correct? parallel-failing-queue-specification {:gen {:threads 2}

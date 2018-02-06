@@ -24,5 +24,6 @@
    :real/cleanup (fn [_] (reset! counter nil))})
 
 (deftest throw-test
-  (is (not (specification-correct? spec {:run {:num-tests 500}})))
+  (is (not (specification-correct? spec {:gen {:max-size 20}
+                                         :run {:num-tests 500}})))
   (is (= @counter nil)))

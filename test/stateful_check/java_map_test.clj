@@ -34,9 +34,11 @@
    :initial-state (fn [setup] {:map setup, :contents {}})
    :real/setup #(java.util.TreeMap.)})
 
-(deftest ^:slow java-map-fails-concurrently
-  (is (specification-correct? java-map-specification))
+(deftest java-map-passes-sequentially
+  (is (specification-correct? java-map-specification)))
+
+(deftest java-map-fails-concurrently
   (is (not (specification-correct? java-map-specification
-                                   {:gen {:threads 2
-                                          :max-length 5}
-                                    :run {:max-tries 50}}))))
+                                   {:gen {:threads 2}
+                                    :run {:max-tries 10
+                                          :num-tests 200}}))))

@@ -85,7 +85,7 @@
   returns the full quick-check result."
   ([specification] (run-specification specification nil))
   ([specification options]
-   (quick-check (get-in options [:run :num-tests] 100)
+   (quick-check (get-in options [:run :num-tests] 200)
                 (spec->property specification options)
                 :seed (get-in options [:run :seed] (System/currentTimeMillis))
                 :max-size (get-in options [:gen :max-size] 200))))
@@ -113,15 +113,17 @@
                                      :max-length 10,
                                      :max-size 200}
                                :run {:max-tries 1,
-                                     :num-tests 100,
+                                     :num-tests 200,
                                      :seed (System/currentTimeMillis)}
-                               :report {:first-case? false}}]))
+                               :report {:first-case? false
+                                        :stacktrace? false}}]))
 
 (defmethod t/assert-expr 'specification-correct?
   [msg [_ specification options]]
   (let [result-sym (gensym "result")]
     `(let [spec# ~specification
-           results# (run-specification spec# ~options)
+           options# ~options
+           results# (run-specification spec# options#)
            ~result-sym (:result results#)
            smallest# (:result (:shrunk results#))]
        (if (true? ~result-sym)
@@ -133,11 +135,11 @@
                        :message (with-out-str
                                   ~(when msg
                                      `(println ~msg))
-                                  ~(when (get-in options [:report :first-case?] false)
-                                     `(print-execution (ex-data ~result-sym)
-                                                       ~(get-in options [:report :stacktrace?] false)))
+                                  (when (get-in options# [:report :first-case?] false)
+                                    (print-execution (ex-data ~result-sym)
+                                                     (get-in options# [:report :stacktrace?] false)))
                                   (print-execution (ex-data smallest#)
-                                                   ~(get-in options [:report :stacktrace?] false)))
+                                                   (get-in options# [:report :stacktrace?] false)))
                        :expected (symbol "all executions to match specification"),
                        :actual (symbol "the above execution did not match the specification")}))
        (true? ~result-sym))))

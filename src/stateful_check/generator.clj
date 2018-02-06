@@ -36,10 +36,7 @@
     [(count vars) (gen/gen-bind (command-gen spec state)
                                 (fn [cmd-and-args-tree]
                                   (let [[cmd-obj & args] (rose/root cmd-and-args-tree)
-                                        result (first vars) ;; (sv/->RootVar (if var-suffix
-                                        ;;       (str count var-suffix)
-                                        ;;       (str count)))
-                                        ]
+                                        result (first vars)]
                                     (if (u/check-precondition cmd-obj state args)
                                       (let [next-state (u/model-make-next-state cmd-obj state args result)]
                                         (gen/gen-bind (command-sequence-tree-gen spec next-state (next vars))
@@ -62,26 +59,29 @@
                                    (index->letter thread-id)))))
        (range length)))
 
-(defn- parallel-command-sequence-gen [spec state {:keys [max-length threads]}]
+(defn- parallel-command-sequence-gen [spec state {:keys [max-length max-size threads]}]
   (let [[max-seq max-par] (if (map? max-length)
                             ((juxt :sequential :parallel) max-length)
                             [max-length max-length])]
     (gen/sized
      (fn [size]
-       (letfn [(parallel-commands-gen [n state]
-                 (if (zero? n)
-                   (gen/gen-pure [])
-                   (gen/gen-bind (command-sequence-tree-gen spec state (make-vars (min size max-par) (dec n)))
-                                 (fn [[tree state]]
-                                   (gen/gen-bind (parallel-commands-gen (dec n) state)
-                                                 (fn [other-trees]
-                                                   (gen/gen-pure (conj other-trees (vec tree)))))))))]
-         (gen/gen-bind (command-sequence-tree-gen spec state (make-vars (min size max-seq) nil))
-                       (fn [[sequential-trees state]]
-                         (gen/gen-bind (parallel-commands-gen threads state)
-                                       (fn [parallel-trees]
-                                         (gen/gen-pure {:sequential (vec sequential-trees)
-                                                        :parallel parallel-trees}))))))))))
+       (let [size-factor (/ size max-size)
+             seq-length (int (* max-seq size-factor))
+             par-length (int (* max-par size-factor))]
+         (letfn [(parallel-commands-gen [n state]
+                   (if (zero? n)
+                     (gen/gen-pure [])
+                     (gen/gen-bind (command-sequence-tree-gen spec state (make-vars par-length (dec n)))
+                                   (fn [[tree state]]
+                                     (gen/gen-bind (parallel-commands-gen (dec n) state)
+                                                   (fn [other-trees]
+                                                     (gen/gen-pure (conj other-trees (vec tree)))))))))]
+           (gen/gen-bind (command-sequence-tree-gen spec state (make-vars seq-length nil))
+                         (fn [[sequential-trees state]]
+                           (gen/gen-bind (parallel-commands-gen threads state)
+                                         (fn [parallel-trees]
+                                           (gen/gen-pure {:sequential (vec sequential-trees)
+                                                          :parallel parallel-trees})))))))))))
 
 (defn- shrink-parallel-command-sequence
   ([{:keys [sequential parallel]}] (shrink-parallel-command-sequence sequential parallel))
@@ -138,7 +138,7 @@
                                      (update parallel i (comp vec next))))
                (range) parallel)))))
 
-(defn commands-gen [spec {:keys [threads, max-length]}]
+(defn commands-gen [spec {:keys [threads max-length max-size]}]
   (let [init-state-fn (or (:model/initial-state spec)
                           (:initial-state spec)
                           (constantly nil))
@@ -149,7 +149,8 @@
                         #{setup-var}
                         #{})]
     (->> (parallel-command-sequence-gen spec init-state {:max-length (or max-length 10)
-                                                         :threads (or threads 0)})
+                                                         :threads (or threads 0)
+                                                         :max-size (or max-size 200)})
          (gen/gen-fmap shrink-parallel-command-sequence)
          (gen/such-that (fn [cmds]
                           ;; we need to generate lists of commands
