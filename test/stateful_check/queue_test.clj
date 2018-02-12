@@ -26,10 +26,10 @@
   (peek @queue))
 
 (defn pop-queue [queue]
-  (loop [value @queue]
+  (let [value @queue]
     (if (compare-and-set! queue value (pop value))
       (peek value)
-      (recur @queue))))
+      (recur queue))))
 
 (defn count-queue [queue]
   (count @queue))
