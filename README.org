@@ -2,8 +2,9 @@
 
 #+PROPERTY: header-args :results silent :session example
 
-A [[http://clojure.org][Clojure]] library designed to help with testing stateful systems with
-[[https://github.com/clojure/test.check/][test.check]].
+A [[http://clojure.org][Clojure]] library designed to help with testing stateful systems with [[https://github.com/clojure/test.check/][test.check]].
+
+By writing a specification of how our system behaves (when you do ~X~, expect ~Y~), we can generate test cases to check that our implementation matches our specification. We can even detect the presence of some race conditions, by running commands in parallel. When a failure is encountered, shrinking can help us to see what went wrong with as few distractions as possible.
 
 #+BEGIN_HTML
 <a href="http://clojars.org/org.clojars.czan/stateful-check">
@@ -121,8 +122,7 @@ If you'd like to read more, you can read [[file:doc/queue.org][a more complete o
 
 * Specifications
 
-For a detailed description of how a ~stateful-check~ specification has
-to be structured, see [[file:doc/specification.org][the specification document]].
+For a detailed description of how a ~stateful-check~ specification has to be structured, see [[file:doc/specification.org][the specification document]].
 
 * Race condition detection
 
