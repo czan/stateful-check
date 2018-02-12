@@ -33,6 +33,13 @@
                      (init-state-fn))]
     (some #(r/valid-execution? % init-state bindings) interleavings)))
 
+(defn combine-cmds-with-traces [command result result-str]
+  (let [last-str (pr-str result)]
+    (if (= last-str result-str)
+      [command result-str]
+      [command (str result-str
+                    "\n    >> object may have been mutated later into " last-str " <<\n")])))
+
 (defn spec->property
   "Turn a specification into a testable property."
   ([spec] (spec->property spec nil))
@@ -49,11 +56,13 @@
                               {})
                    results (r/runners->results runners bindings)]
                (when-not (some-valid-interleaving spec commands results bindings)
-                 (throw (make-failure-exception (mapv vector
+                 (throw (make-failure-exception (mapv combine-cmds-with-traces
                                                       (:sequential commands)
+                                                      (:sequential results)
                                                       (:sequential-strings results))
-                                                (mapv (partial mapv vector)
+                                                (mapv (partial mapv combine-cmds-with-traces)
                                                       (:parallel commands)
+                                                      (:parallel results)
                                                       (:parallel-strings results))))))
              (finally
                (when-let [cleanup (:cleanup spec)]

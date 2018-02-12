@@ -5,6 +5,7 @@
             :url "https://opensource.org/licenses/MIT"}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/test.check "0.9.0"]]
-  :test-selectors {:default (complement :slow)
-                   :slow :slow}
-  :plugins [[jonase/eastwood "0.2.5"]])
+  :test-selectors {:default #(not (or (:slow %)
+                                      (:interactive %)))
+                   :interactive :interactive
+                   :slow :slow})
