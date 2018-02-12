@@ -1,6 +1,6 @@
 #+TITLE: A simple queue example
 
-#+PROPERTY: header-args:clojure :session example :results silent
+#+PROPERTY: header-args :session example :results silent
 
 As an example, let's test a mutable queue (a ~PersistentQueue~ in an
 atom). Our queue will have three operations: ~new~, ~push~ and
@@ -29,25 +29,25 @@ semantics:
 
 #+BEGIN_SRC clojure
   (def new-queue-specification
-    {:model/requires (fn [state] (nil? state))
-     :real/command #'new-queue
+    {:requires (fn [state] (nil? state))
+     :command #'new-queue
      :next-state (fn [state _ result] {:queue result, :elements []})})
 #+END_SRC
 
 This specification contains three elements:
 
-- ~:model/requires~ specifies that this command is only valid if the
+- ~:requires~ specifies that this command is only valid if the
   state of the system is ~nil~ (which in this case means: nothing has
   been done to the system yet)
 
-- ~:real/command~ specifies what to do to actually run this command.
+- ~:command~ specifies what to do to actually run this command.
   For this command we want to allocate a new queue.
 
 - ~:next-state~ denotes the effect that running this command will have
   on the state of the system. In this case running the ~new-queue~
   function will initialise the state. ~:elements~ is set to the empty
   vector because our queue starts off empty. ~:queue~ is set to the
-  result of calling the ~:real/command~ function to store it for later
+  result of calling the ~:command~ function to store it for later
   operations.
 
 In this instance the ~:next-state~ function is called when performing
@@ -72,22 +72,22 @@ Then its semantics:
 
 #+BEGIN_SRC clojure
   (def push-queue-specification
-    {:model/requires (fn [state] state)
-     :model/args (fn [state] [(:queue state) gen/nat])
-     :real/command #'push-queue
+    {:requires (fn [state] state)
+     :args (fn [state] [(:queue state) gen/nat])
+     :command #'push-queue
      :next-state (fn [state [_ val] _] (update-in state [:elements] conj val))})
 #+END_SRC
 
 This specification has one additional element over
 ~new-queue-specification~:
 
-- ~:model/args~ specifies a function which will provide a generator to
+- ~:args~ specifies a function which will provide a generator to
   generate arguments for ~push-queue~. What we pass is converted into
   a generator where possible. In this case we are returning the queue
   under test (~(:queue state)~) as well as a generated natural number
   (~gen/nat~).
 
-In addition to this, we can see that ~:model/requires~ merely requires
+In addition to this, we can see that ~:requires~ merely requires
 that there be something truthy in the state, and ~:next-state~ simply
 adds the command to the end of the ~:elements~ vector in the ~state~
 map.
@@ -98,22 +98,21 @@ Lastly, ~pop-queue~:
 
 #+BEGIN_SRC clojure
   (defn pop-queue [queue]
-    (let [val (peek @queue)]
-      (swap! queue pop)))
+    (swap! queue pop))
 #+END_SRC
 
 #+BEGIN_SRC clojure
   (def pop-queue-specification
-    {:model/requires (fn [state] (seq (:elements state)))
-     :model/args (fn [state] [(:queue state)])
-     :real/command #'pop-queue
+    {:requires (fn [state] (seq (:elements state)))
+     :args (fn [state] [(:queue state)])
+     :command #'pop-queue
      :next-state (fn [state [queue] _] (update-in state [:elements] (comp vec next)))
-     :real/postcondition (fn [state _ [_] val] (= (first (:elements state)) val))})
+     :postcondition (fn [state _ [_] val] (= (first (:elements state)) val))})
 #+END_SRC
 
 This specification has one more element from ~push-queue-specification~:
 
-- ~:real/postcondition~ determines whether the result of performing
+- ~:postcondition~ determines whether the result of performing
   this action correctly matches the expectation (from the abstract
   state). In our case: we expect the value returned by ~pop-queue~ to
   be the first value in the ~:elements~ vector.
@@ -132,25 +131,33 @@ specification.
 #+END_SRC
 
 The ~:commands~ key just contains a map of each command spec we are
-using for this model. ~:model/generate-command~ is a function from the
-abstract state to a generator which will generate a new command.
+using for this model.
 
 Let's see what happens when we run this specification:
 
 #+BEGIN_SRC clojure :results replace output
-  (is (specification-correct? queue-spec {:seed 1438362541481}))
-  ;;
-  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init3962045565695936929.clj:1)
-  ;;    #<0> = (:new)     => #<Atom@766af535: #<PersistentQueue clojure.lang.PersistentQueue@1>>
-  ;;    #<2> = (:push #<0> 0)     => nil
-  ;;    #<3> = (:pop #<0>)        => #<PersistentQueue clojure.lang.PersistentQueue@1>
-  ;; Error while checking postcondition
-  ;; Seed:  1438362541481
-  ;; Visited:  11
-  ;;
-  ;; expected: :pass
-  ;;   actual: :fail
+  (is (specification-correct? queue-spec {:run {:seed 1438362541481}}))
+  ;; 
+  ;; FAIL in () (form-init4764932752973424260.clj:1)
+  ;; Sequential prefix:
+  ;;   #<1> = (:new) = #atom[#object[clojure.lang.PersistentQueue 0x9060190 "clojure.lang.PersistentQueue@1"] 0x766dbf8c]
+  ;;   #<2> = (:push #<1> 0) = nil
+  ;;   #<3> = (:pop #<1>) = #object[clojure.lang.PersistentQueue 0x13952b4e "clojure.lang.PersistentQueue@1"]
+  ;; 
+  ;; expected: all executions to match specification
+  ;;   actual: the above execution did not match the specification
 #+END_SRC
+
+#+RESULTS:
+: 
+: FAIL in () (form-init4764932752973424260.clj:1)
+: Sequential prefix:
+:   #<1> = (:new) = #atom[#object[clojure.lang.PersistentQueue 0x9060190 "clojure.lang.PersistentQueue@1"] 0x566e5b63]
+:   #<2> = (:push #<1> 0) = nil
+:   #<3> = (:pop #<1>) = #object[clojure.lang.PersistentQueue 0x550a43d8 "clojure.lang.PersistentQueue@1"]
+: 
+: expected: all executions to match specification
+:   actual: the above execution did not match the specification
 
 Whoops! It failed! We must have a bug somewhere.
 
@@ -177,8 +184,89 @@ Now let's try running our tests again.
   (is (specification-correct? queue-spec))
 #+END_SRC
 
+#+RESULTS:
+
 No output? That means the test passed! Success!
+
+* Running tests to find race conditions
+
+Now that we've fixed our tests in the sequential case, let's check to see if we have any race conditions in our data structure! To do this, we just add a few more options to our command. We're going to add a ~:gen~ option to change the behaviour of our command generator to generate two threads, and we'll add a ~:run~ option to run each tests a maximum of ten times, in an attempt to provoke an error.
+
+#+BEGIN_SRC clojure :results replace output :timeout 30
+  (is (specification-correct? queue-spec {:gen {:threads 2}
+                                          :run {:max-tries 10}}))
+  ;;
+  ;; FAIL in () (form-init4764932752973424260.clj:1)
+  ;; Sequential prefix:
+  ;;   #<1> = (:new) = #atom[#object[clojure.lang.PersistentQueue 0x9060190 "clojure.lang.PersistentQueue@1"] 0x48cf3d4c]
+  ;;   #<2> = (:push #<1> 0) = nil
+  ;;   #<3> = (:push #<1> 1) = nil
+  ;; 
+  ;; Thread a:
+  ;;   #<1a> = (:pop #<1>) = 0
+  ;; 
+  ;; Thread b:
+  ;;   #<1b> = (:pop #<1>) = 0
+  ;; 
+  ;; expected: all executions to match specification
+  ;;   actual: the above execution did not match the specification
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+
+FAIL in () (form-init4764932752973424260.clj:1)
+Sequential prefix:
+  #<1> = (:new) = #atom[#object[clojure.lang.PersistentQueue 0x9060190 "clojure.lang.PersistentQueue@1"] 0x48cf3d4c]
+  #<2> = (:push #<1> 0) = nil
+  #<3> = (:push #<1> 1) = nil
+
+Thread a:
+  #<1a> = (:pop #<1>) = 0
+
+Thread b:
+  #<1b> = (:pop #<1>) = 0
+
+expected: all executions to match specification
+  actual: the above execution did not match the specification
+#+end_example
+
+One again, our test is failing! We have a race condition!
+
+The above output tells us that the race condition can be provoked by allocating a new queue and pushing a ~0~ and a ~1~ into it. Then, in two parallel threads, pop the top value of the thread. Now there are two possible ways this should go: either ~Thread a~ should get a ~0~ and ~Thread b~ should get a ~1~, or the other way around. We can see in the output above that /both/ threads got a ~0~ when they popped the queue. That's not right!
+
+If you run this test multiple times, you'll notice that it gives a different output. This is because race condition tests are non-deterministic (at least at the moment). They attempt to reproduce failures by trying many times (hence the ~:max-tries~ option), but this isn't reliable. You may need to experiment to find values which work for your use-case.
+
+Given we have shown that our queue is correct when we tested it sequentially, this should make us suspicious of our ~pop~ operation. Let's have a look at its implementation again:
+
+#+BEGIN_SRC clojure
+  (defn pop-queue [queue]
+    (let [val (peek @queue)]
+      (swap! queue pop)
+      val))
+#+END_SRC
+
+In our haste to fix the earlier problem that we had with ~pop-queue~, we accidentally introduced a race condition. It's possible for two threads to each execute ~(peek @queue)~ before either of them has run ~(swap! queue pop)~. This will result the first value in the queue being returned in two separate threads, and one being silently dropped.
+
+To fix this we're going to have to use a lower level operation: ~compare-and-set!~. The details of this are beyond the scope of this example, so I will provide an implementation without further explanation.
+
+#+BEGIN_SRC clojure
+  (defn pop-queue [queue]
+    (let [value @queue]
+      (if (compare-and-set! queue value (pop value))
+        (peek value)
+        (recur queue))))
+#+END_SRC
+
+Re-running our tests, we can see that ~stateful-check~ is no longer able to find a counterexample:
+
+#+BEGIN_SRC clojure :results replace output :timeout 60
+  (is (specification-correct? queue-spec {:gen {:threads 2}
+                                          :run {:max-tries 10}}))
+#+END_SRC
 
 # Local Variables:
 # org-confirm-babel-evaluate: nil
+# cider-buffer-ns: "stateful-check.example"
+# nrepl-sync-request-timeout: 60
 # End:

@@ -1,7 +1,10 @@
 #+TITLE: stateful-check
 
-A [[http://clojure.org][Clojure]] library designed to help with testing stateful systems with
-[[https://github.com/clojure/test.check/][test.check]].
+#+PROPERTY: header-args :results silent :session example
+
+A [[http://clojure.org][Clojure]] library designed to help with testing stateful systems with [[https://github.com/clojure/test.check/][test.check]].
+
+By writing a specification of how our system behaves (when you do ~X~, expect ~Y~), we can generate test cases to check that our implementation matches our specification. We can even detect the presence of some race conditions, by running commands in parallel. When a failure is encountered, shrinking can help us to see what went wrong with as few distractions as possible.
 
 #+BEGIN_HTML
 <a href="http://clojars.org/org.clojars.czan/stateful-check">
@@ -12,158 +15,138 @@ A [[http://clojure.org][Clojure]] library designed to help with testing stateful
 
 * Example
 
-As an example, let's implement a simple mutable queue and a
-specification to test it.
+As an example, let's write a specification for Java's ~java.util.TreeMap~ implementation. This will allow us to find the (already known) race conditions present in its implementation.
 
-To begin with, let's pull in the dependencies we'll need later.
-#+BEGIN_SRC clojure :results silent :session example
-  (ns stateful-check.example
-    (:require [clojure.test :refer [is]]
-              [clojure.test.check.generators :as gen]
-              [stateful-check.core :refer [specification-correct?]]))
-#+END_SRC
+This will be the final result, once we have assembled our specification:
 
-** Queue implementation
+#+BEGIN_SRC clojure :results replace output
+  ;; no output, because our specification is correct when run sequentially
+  (is (specification-correct? java-map-specification))
+  ;; => true
 
-For our queue, let's just wrap a ~clojure.lang.PersistentQueue~ in an
-atom, and have our push/pop operations act on one of these atoms.
-#+BEGIN_SRC clojure :results silent :session example
-  (defn new-queue []
-    (atom clojure.lang.PersistentQueue/EMPTY))
-  (defn push-queue [queue value]
-    (swap! queue conj value))
-  (defn pop-queue [queue]
-    (swap! queue pop))
-#+END_SRC
-
-There we go, easy! Now, let's write some specifications for the
-push/pop operations (we'll treat ~new-queue~ as a setup operation, so
-we don't need a specification for it).
-
-For the following commands we're going to model the state of the real
-queue by a vector under the key ~:elements~ in the state. We'll ~conj~
-onto the end of the vector to model calling ~push-queue~, and we'll
-~(comp vec next)~ to remove the element at the front of the vector to
-model calling ~pop-queue~.
-
-** Command: ~push-queue~
-
-Let's start with ~push-queue~:
-#+BEGIN_SRC clojure :results silent :session example
-  (def push-queue-specification
-    {:model/args (fn [state]
-                   [(:queue state) gen/nat])
-     :real/command #'push-queue
-     :next-state (fn [state [_ val] _]
-                   (update-in state [:elements] conj val))})
-#+END_SRC
-
-This specification tells the system how to generate arguments for this
-command, how to run the command, and what the expected effect on the
-state of the system is. In this case, we expect our command to take
-the queue under test and a natural number and we expect it to add that
-number to the end of the ~:elements~ collection (which will be a
-vector) in the state.
-
-** Command: ~pop-queue~
-
-Now how about ~pop-queue~?
-#+BEGIN_SRC clojure :results silent :session example
-  (def pop-queue-specification
-    {:model/requires (fn [state]
-                       (seq (:elements state)))
-     :model/args (fn [state]
-                   [(:queue state)])
-     :real/command #'pop-queue
-     :next-state (fn [state _ _]
-                   (update-in state [:elements] (comp vec next)))
-     :real/postcondition (fn [prev-state _ _ val]
-                           (= (-> prev-state :elements first)
-                              val))})
-#+END_SRC
-
-This command specification specifies that we expect ~pop~ to modify
-the state by removing the first element from the ~:elements~
-collection (leaving it as a vector). The postcondition then asserts
-that the result of the command must be equal to the first element from
-the old ~:elements~ collection (so we pop off the front).
-
-** Specification: ~queue-spec~
-
-Now we have a specification for our two commands, let's put them
-together in a system specification.
-
-#+BEGIN_SRC clojure :results silent :session example
-  (def queue-spec
-    {:commands {:push #'push-queue-specification
-                :pop #'pop-queue-specification}
-     :real/setup #'new-queue
-     :initial-state (fn [queue] {:queue queue, :elements []})})
-#+END_SRC
-
-This system specification tells the system how to run our command
-specifications. It specifies the initial state of the system, which
-our other commands then rely on (ie. the ~:queue~ and ~:elements~ keys
-are used by our command specifications).
-
-We can now run this specification with:
-#+BEGIN_SRC clojure :results output :session example
-  (is (specification-correct? queue-spec))
+  ;; but a failure when run on multiple threads
+  (is (specification-correct? java-map-specification
+                              {:gen {:threads 2}
+                               :run {:max-tries 100}}))
+  ;; FAIL in () (form-init4244174681303601076.clj:54)
+  ;; Sequential prefix:
   ;;
-  ;; FAIL in clojure.lang.PersistentList$EmptyList@1 (form-init3821556149176680553.clj:1)
-  ;;    #<1> = (:push #<setup> 0)         => #<PersistentQueue clojure.lang.PersistentQueue@1f>
-  ;;    #<2> = (:pop #<setup>)    => #<PersistentQueue clojure.lang.PersistentQueue@1>
-  ;; Error while checking postcondition
-  ;; Seed:  1417059242645
-  ;; Visited:  6
+  ;; Thread a:
+  ;;   #<4a> = (:put "" 0) = nil
   ;;
-  ;; expected: :pass
-  ;;   actual: :fail
+  ;; Thread b:
+  ;;   #<2b> = (:put "tree" 0) = nil
+  ;;   #<4b> = (:get "tree") = nil
+  ;;
+  ;; expected: all executions to match specification
+  ;;   actual: the above execution did not match the specification
+  ;; => false
 #+END_SRC
 
-Oh no! Our test has failed! We've got a nice print-out of what
-commands can be executed to provoke this failure, and what values were
-seen during the actual failed execution.
+~TreeMap~ fails to meet our specification (presented below) because it is possible to generate command lists which do not correspond to a sequential execution. In this case, there are three possible ways for these commands to be organised:
+ - ~4a~, ~2b~, then ~4b~
+ - ~2b~, ~4a~, then ~4b~
+ - ~2b~, ~4b~, then ~4a~
+but none of these sequential executions match the output that we have seen. In any of them, we would expect ~4b~ to have returned ~0~ instead of ~nil~. Thus, we have found a race condition in ~java.util.TreeMap~.
 
-As we can see, our queue fails when we ~:push~ zero, then ~:pop~. If
-we look at the output of the ~:pop~ command we can see that the value
-it's returned isn't at all what we expected! We expected it to return
-~0~, because that's what we pushed into the queue. Instead, it's
-returned a queue object! Our ~pop-queue~ function is quite broken.
+** Setup
 
-Let's fix it:
-#+BEGIN_SRC clojure :results silent :session example
-  (defn pop-queue [queue]
-    (let [value (peek @queue)]
-      (swap! queue pop)
-      value))
+To start off with we'll need to require some namespaces that we'll need later:
+#+BEGIN_SRC clojure
+  (require '[clojure.test :refer [is]]
+           '[clojure.test.check.generators :as gen]
+           '[stateful-check.core :refer [specification-correct?]])
 #+END_SRC
 
-Now we can try re-running out tests:
-#+BEGIN_SRC clojure :results output :session example
-  (is (specification-correct? queue-spec))
+We'll be testing a ~TreeMap~, so let's allocate one in a global variable that we'll access during our tests.
+#+BEGIN_SRC clojure
+  (def system-under-test (java.util.TreeMap.))
 #+END_SRC
 
-No output? That's a success!
+We're also going to need some keys, to insert into the map. We use a small set of keys to try to encourage the generated commands to act on the same keys. We could use a larger set (even infinitely large, such as ~gen/string~), but then we potentially lower the chance of us provoking a bug.
+#+BEGIN_SRC clojure
+  (def test-keys ["" "a" "house" "tree" "λ"])
+#+END_SRC
+
+** Commands
+
+Our command to ~put~ things into the map is fairly simple. It chooses one of the keys at random, and a random integer. The ~:command~ key defines the behaviour of this command, which is to call ~.put~ on our map. We then modify our test's state to associate the key with the value. This state will then be read during ~get~ commands, so we know what to expect.
+
+#+BEGIN_SRC clojure
+  (def put-command
+    {:args (fn [state] [(gen/elements test-keys) gen/int])
+     :command #(.put system-under-test %1 %2)
+     :next-state (fn [state [k v] _]
+                   (assoc state k v))})
+#+END_SRC
+
+Our command to ~get~ things out of the map is also fairly simple. It requires that we think there's something in the map (because the test's state says so). It chooses one of the keys at random, and gets it out. The postcondition requires that the value we got out of the map matches what our state contains for that key.
+
+#+BEGIN_SRC clojure
+  (def get-command
+    {:requires (fn [state] (seq state))
+     :args (fn [state] [(gen/elements test-keys)])
+     :command #(.get system-under-test %1)
+     :postcondition (fn [prev-state _ [k] val]
+                      (= (get prev-state k) val))})
+#+END_SRC
+
+** Specification
+
+Now we have to put these commands together into a specification. We also include a ~:setup~ function, which restores the map to a known state (no values). The test's state is implicitly ~nil~.
+
+#+BEGIN_SRC clojure
+  (def java-map-specification
+    {:commands {:put #'put-command
+                :get #'get-command}
+     :setup #(.clear system-under-test)})
+#+END_SRC
+
+** Running
+
+We can now run the test, as shown above.
+
+#+BEGIN_SRC clojure
+  (is (specification-correct? java-map-specification))
+
+  ;; note that this call can take a long time, and may need to be run
+  ;; multiple times to provoke a failure
+  (is (specification-correct? java-map-specification
+                              {:gen {:threads 2}
+                               :run {:max-tries 100}}))
+  ;; there are a few ways this can fail; the most fun failure thus far
+  ;; was an NPE!
+#+END_SRC
+
+To view this example in one file, see [[file:test/stateful_check/java_map_test.clj][the relevant test file]].
+
+If you'd like to read more, you can read [[file:doc/queue.org][a more complete of testing a queue]]. Alternatively you can try running the above test with a ~java.util.HashMap~ instead. Is it easier, or harder, to make it fail than the ~TreeMap~? Are the failures that you see different to the ~TreeMap~?
 
 * Specifications
 
-For a detailed description of how a ~stateful-check~ specification has
-to be structured, see [[file:doc/specification.org][the specification document]].
+For a detailed description of how a ~stateful-check~ specification has to be structured, see [[file:doc/specification.org][the specification document]].
+
+* Race condition detection
+
+For more information about how the race condition detection works, see [[file:doc/race-conditions.org][the notes on ~stateful-check~'s race condition detection]].
 
 * Related work
 
-- [[https://github.com/clojure/test.check/][test.check]] (generative testing for Clojure)
+- [[https://github.com/clojure/test.check/][test.check]] (generative testing for Clojure, on which ~stateful-check~ is built)
 - [[http://www.quviq.com/index.html][QuviQ Quickcheck]] (commercial generative testing for Erlang)
 - [[http://proper.softlab.ntua.gr/index.html][PropEr]] (open source generative testing for Erlang)
 
 * Future work
 
-- race-condition debugging (parallel test cases)
+- hook into JVM scheduler/debugger to control scheduling to make tests reproducible
 
 * License
 
-Copyright © 2014 Carlo Zancanaro
+Copyright © 2018 Carlo Zancanaro
 
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+Distributed under the MIT Licence.
+
+# Local Variables:
+# org-confirm-babel-evaluate: nil
+# nrepl-sync-request-timeout: nil
+# End:

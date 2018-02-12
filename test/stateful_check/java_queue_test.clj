@@ -59,64 +59,64 @@
 ;;
 
 (def new-shared-queue-command
-  {:model/args (fn [_] [gen/nat])
-   :model/precondition (fn [_ [size]] (pos? size))
-   :real/command #'new-shared-queue
+  {:args (fn [_] [gen/nat])
+   :precondition (fn [_ [size]] (pos? size))
+   :command #'new-shared-queue
    :next-state (fn [state [size] queue]
                  (assoc state queue
                         {:elements []
                          :size size}))})
 
 (def new-array-queue-command
-  {:model/args (fn [_] [gen/nat])
-   :model/precondition (fn [_ [size]] (pos? size))
-   :real/command #'new-array-queue
+  {:args (fn [_] [gen/nat])
+   :precondition (fn [_ [size]] (pos? size))
+   :command #'new-array-queue
    :next-state (fn [state [size] queue]
                  (assoc state queue
                         {:elements []
                          :size size}))})
 
 (def push-queue-command
-  {:model/requires (complement nil?)
-   :model/args (fn [state]
-                 [(gen/elements (keys state))
-                  gen/nat])
-   :model/precondition (fn [state [queue _]]
-                         (let [{:keys [elements size]} (get state queue)]
-                           (< (clojure.core/count elements) size)))
-   :real/command #'push
+  {:requires (complement nil?)
+   :args (fn [state]
+           [(gen/elements (keys state))
+            gen/nat])
+   :precondition (fn [state [queue _]]
+                   (let [{:keys [elements size]} (get state queue)]
+                     (< (clojure.core/count elements) size)))
+   :command #'push
    :next-state (fn [state [queue val] _]
                  (update-in state [queue :elements] conj val))})
 
 (def peek-queue-command
-  {:model/requires (complement nil?)
-   :model/args (fn [state]
-                 [(gen/elements (keys state))])
-   :model/precondition (fn [state [queue]]
-                         (seq (get-in state [queue :elements])))
-   :real/command #'peek
-   :real/postcondition (fn [state _ [queue] val]
-                         (= val (first (get-in state [queue :elements]))))})
+  {:requires (complement nil?)
+   :args (fn [state]
+           [(gen/elements (keys state))])
+   :precondition (fn [state [queue]]
+                   (seq (get-in state [queue :elements])))
+   :command #'peek
+   :postcondition (fn [state _ [queue] val]
+                    (= val (first (get-in state [queue :elements]))))})
 
 (def pop-queue-command
-  {:model/requires (complement nil?)
-   :model/args (fn [state]
-                 [(gen/elements (keys state))])
-   :model/precondition (fn [state [queue]]
-                         (seq (get-in state [queue :elements])))
-   :real/command #'pop
+  {:requires (complement nil?)
+   :args (fn [state]
+           [(gen/elements (keys state))])
+   :precondition (fn [state [queue]]
+                   (seq (get-in state [queue :elements])))
+   :command #'pop
    :next-state (fn [state [queue] _]
                  (update-in state [queue :elements] (comp vec next)))
-   :real/postcondition (fn [state _ [queue] val]
-                         (= val (first (get-in state [queue :elements]))))})
+   :postcondition (fn [state _ [queue] val]
+                    (= val (first (get-in state [queue :elements]))))})
 
 (def count-queue-command
-  {:model/requires (complement nil?)
-   :model/args (fn [state]
-                 [(gen/elements (keys state))])
-   :real/command #'count
-   :real/postcondition (fn [state _ [queue] val]
-                         (= val (clojure.core/count (get-in state [queue :elements]))))})
+  {:requires (complement nil?)
+   :args (fn [state]
+           [(gen/elements (keys state))])
+   :command #'count
+   :postcondition (fn [state _ [queue] val]
+                    (= val (clojure.core/count (get-in state [queue :elements]))))})
 
 ;;
 ;; Generative testing specification
@@ -128,13 +128,15 @@
               :peek #'peek-queue-command
               :pop #'pop-queue-command
               :count #'count-queue-command}
-   :real/setup #(reset! array clojure.lang.PersistentQueue/EMPTY)
-   :model/generate-command (fn [state]
-                             (gen/frequency [[1 (gen/return :new)]
-                                             [5 (gen/return :push)]
-                                             [5 (gen/return :peek)]
-                                             [5 (gen/return :pop)]
-                                             [5 (gen/return :count)]]))})
+   :setup #(reset! array clojure.lang.PersistentQueue/EMPTY)
+   :generate-command (fn [state]
+                       (if (nil? state)
+                         (gen/return :new)
+                         (gen/frequency [[1 (gen/return :new)]
+                                         [5 (gen/return :push)]
+                                         [5 (gen/return :peek)]
+                                         [5 (gen/return :pop)]
+                                         [5 (gen/return :count)]])))})
 
 (def array-queue-specification
   {:commands {:new #'new-array-queue-command
@@ -142,12 +144,14 @@
               :peek #'peek-queue-command
               :pop #'pop-queue-command
               :count #'count-queue-command}
-   :model/generate-command (fn [state]
-                             (gen/frequency [[1 (gen/return :new)]
-                                             [5 (gen/return :push)]
-                                             [5 (gen/return :peek)]
-                                             [5 (gen/return :pop)]
-                                             [5 (gen/return :count)]]))})
+   :generate-command (fn [state]
+                       (if (nil? state)
+                         (gen/return :new)
+                         (gen/frequency [[1 (gen/return :new)]
+                                         [5 (gen/return :push)]
+                                         [5 (gen/return :peek)]
+                                         [5 (gen/return :pop)]
+                                         [5 (gen/return :count)]])))})
 
 (deftest shared-queue-test
   (is (not (specification-correct? shared-queue-specification))))

@@ -1,0 +1,35 @@
+#+TITLE: Race conditions
+
+We now have the ability to detect race conditions with ~stateful-check~! This relies on one fundamental assumption, and comes with lots of caveats.
+
+*Assumption:* each command is /atomic/. Or, in other words, a parallel execution of ~n~ threads can be /serialised/ into a single sequential series of commands with the same observable output.
+
+This assumption is now something that ~stateful-check~ can test, by attempting to find an example where this assumption does not hold. It does this by generating a random series of commands to run in ~n~ threads, just as it does in the sequential case.
+
+Unlike the sequential case, though, we can't rely on the test failing every time we run it. This leads us to *caveat 1:* in the absence of an easy way to replace the JVM's scheduler, we must run the test multiple times to try to provoke a race condition. To do this, we supply an options map to ~specification-correct?~, like this:
+
+#+BEGIN_EXAMPLE
+(is (specification-correct? specification {:gen {:threads 2}
+                                           :run {:max-tries 10}}))
+#+END_EXAMPLE
+
+With this specification each test case will consist of a number of commands run sequentially (the "sequential prefix"), followed by ~2~ threads worth of commands, run at the same time (the "parallel suffixes"). Each test-case ~10~ times, in an attempt to provoke a failure. If the test passes all ~10~ times then it will be considered a valid execution.
+
+But what is a "valid execution", in a parallel context? It means that the result of each command matches /at least one/ serialisation of those commands. This leads us to *caveat number 2:* it is expensive to check whether a command is valid. The number of potential serialisations for two threads is ~(2k)!/(k!^2)~, where ~k~ is the number of commands per thread. In order to validate an execution trace we may need to run our postconditions for /every/ potential serialisation. For more than two threads it grows even more quickly. In general, for ~n~ threads I think it's ~(nk)!/(k!^n)~ (based on observation and [[https://oeis.org/][OEIS]], I haven't proven it). This means that we want to keep the number of threads low, and the each thread's command list short. We can do this with some options:
+
+#+BEGIN_EXAMPLE
+(is (specification-correct? specification {:gen {:threads 2
+                                                 :max-length 5}
+                                           :run {:max-tries 10}}))
+#+END_EXAMPLE
+
+This will now run the tests using at most ~2~ threads, with each thread (as well as the sequential prefix) restricted to at most ~5~ commands. We can control the ~:max-length~ of the sequential prefix separately to the sequential suffixes by using this:
+
+#+BEGIN_EXAMPLE
+(is (specification-correct? specification {:gen {:threads 2
+                                                 :max-length {:sequential 10
+                                                              :parallel 5}}
+                                           :run {:max-tries 10}}))
+#+END_EXAMPLE
+
+Unfortunately ~stateful-check~ is fairly limited. While it can find bugs, it is not guaranteed to do so. A properly formed specification will never give a false positive: if the test failed then there is a bug somewhere - either in your specification or in your system. Unfortunately it is possible to give false negatives: tests which pass despite the presence of bugs.

@@ -1,3 +1,21 @@
+* 0.4.0
+
+Many, many, many changes. I'll try to go through them.
+
+- Change to the MIT license.
+
+- Remove ~real/~ and ~model/~ prefixes from keys. They don't mean as much, given the other changes that will be explained below.
+
+- Remove the specification ~:real/postcondition~ function. It doesn't really fit in the context of parallel tests.
+
+- The command execution phase is now separate to the trace verification stage. This means that ~:postcondition~ functions on commands no longer run interleaves with runs of ~:command~ functions. Now all the ~:command~ functions are run in a sequence, which is then /checked/ by the ~:postcondition~ functions. In particular this means that ~:postcondition~ shouldn't interact with the SUT at all!
+
+- Re-work the options map. It now has three parts: ~:gen~, ~:run~, and ~:report~.
+
+- Add support for running parallel tests, to try to find race conditions. Use ~{:gen {:threads 2}}~ to generate threads with two parallel threads, and ~{:run {:max-tries 10}}~ to try 10 times to provoke the race condition on each test.
+
+- Removed deprecated functions.
+
 * 0.3.1
 
 - ~:model/args~ now coerces the returned values into a generator.
