@@ -1,5 +1,7 @@
 #+TITLE: stateful-check
 
+#+PROPERTY: header-args :results silent :session example
+
 A [[http://clojure.org][Clojure]] library designed to help with testing stateful systems with
 [[https://github.com/clojure/test.check/][test.check]].
 
@@ -12,21 +14,59 @@ A [[http://clojure.org][Clojure]] library designed to help with testing stateful
 
 * Example
 
-As an example, let's test Java's ~java.util.TreeMap~ implementation. To start off with we'll need to require some namespaces that we'll need later:
-#+BEGIN_SRC clojure :results silent
-  (require [clojure.test :refer [is]]
-           [clojure.test.check.generators :as gen]
-           [stateful-check.core :refer [specification-correct?]])
+As an example, let's write a specification for Java's ~java.util.TreeMap~ implementation. This will allow us to find the (already known) race conditions present in its implementation.
+
+This will be the final result, once we have assembled our specification:
+
+#+BEGIN_SRC clojure :results replace output
+  ;; no output, because our specification is correct when run sequentially
+  (is (specification-correct? java-map-specification))
+  ;; => true
+
+  ;; but a failure when run on multiple threads
+  (is (specification-correct? java-map-specification
+                              {:gen {:threads 2
+                                     :max-length 4}
+                               :run {:max-tries 100}}))
+  ;; FAIL in () (form-init4244174681303601076.clj:54)
+  ;; Sequential prefix:
+  ;;
+  ;; Thread a:
+  ;;   #<4a> = (:put "" 0) = nil
+  ;;
+  ;; Thread b:
+  ;;   #<2b> = (:put "tree" 0) = nil
+  ;;   #<4b> = (:get "tree") = nil
+  ;;
+  ;; expected: all executions to match specification
+  ;;   actual: the above execution did not match the specification
+  ;; => false
+#+END_SRC
+
+** Setup
+
+To start off with we'll need to require some namespaces that we'll need later:
+#+BEGIN_SRC clojure
+  (require '[clojure.test :refer [is]]
+           '[clojure.test.check.generators :as gen]
+           '[stateful-check.core :refer [specification-correct?]])
 #+END_SRC
 
 We'll be testing a ~TreeMap~, so let's allocate one in a global variable that we'll access during our tests.
-#+BEGIN_SRC clojure :results silent
+#+BEGIN_SRC clojure
   (def system-under-test (java.util.TreeMap.))
+#+END_SRC
+
+We're also going to need some keys, to insert into the map. We use a small set of keys to try to encourage the generated commands to act on the same keys. We could use a larger set (even infinitely large, such as ~gen/string~), but then we potentially lower the chance of us provoking a bug.
+#+BEGIN_SRC clojure
+  (def test-keys ["" "a" "house" "tree" "λ"])
 #+END_SRC
 
 ** Commands
 
-#+BEGIN_SRC clojure :results silent
+Our command to ~put~ things into the map is fairly simple. It chooses one of the keys at random, and a random integer. The ~:command~ key defines the behaviour of this command, which is to call ~.put~ on our map. We then modify our test's state to associate the key with the value. This state will then be read during ~get~ commands, so we know what to expect.
+
+#+BEGIN_SRC clojure
   (def put-command
     {:args (fn [state] [(gen/elements test-keys) gen/int])
      :command #(.put system-under-test %1 %2)
@@ -34,7 +74,9 @@ We'll be testing a ~TreeMap~, so let's allocate one in a global variable that we
                    (assoc state k v))})
 #+END_SRC
 
-#+BEGIN_SRC clojure :results silent
+Our command to ~get~ things out of the map is also fairly simple. It requires that we think there's something in the map (because the test's state says so). It chooses one of the keys at random, and gets it out. The postcondition requires that the value we got out of the map matches what our state contains for that key.
+
+#+BEGIN_SRC clojure
   (def get-command
     {:requires (fn [state] (seq state))
      :args (fn [state] [(gen/elements test-keys)])
@@ -45,7 +87,9 @@ We'll be testing a ~TreeMap~, so let's allocate one in a global variable that we
 
 ** Specification
 
-#+BEGIN_SRC clojure :results silent
+Now we have to put these commands together into a specification. We also include a ~:setup~ function, which restores the map to a known state (no values). The test's state is implicitly ~nil~.
+
+#+BEGIN_SRC clojure
   (def java-map-specification
     {:commands {:put #'put-command
                 :get #'get-command}
@@ -54,32 +98,29 @@ We'll be testing a ~TreeMap~, so let's allocate one in a global variable that we
 
 ** Running
 
+We can now run the test, as shown above.
+
 #+BEGIN_SRC clojure
   (is (specification-correct? java-map-specification))
+
+  ;; note that this call can take a long time, and may need to be run
+  ;; multiple times to provoke the failure
+  (is (specification-correct? java-map-specification
+                              {:gen {:threads 2
+                                     :max-length 4}
+                               :run {:max-tries 100}}))
 #+END_SRC
 
-#+BEGIN_SRC clojure
-  (is (not (specification-correct? java-map-specification
-                                   {:gen {:threads 2
-                                          :max-length 4}
-                                    :run {:max-tries 100}})))
-#+END_SRC
-
-As an example, let's implement a simple mutable queue and a
-specification to test it.
-
-To begin with, let's pull in the dependencies we'll need later.
-#+BEGIN_SRC clojure :results silent :session example
-  (ns stateful-check.example
-    (:require [clojure.test :refer [is]]
-              [clojure.test.check.generators :as gen]
-              [stateful-check.core :refer [specification-correct?]]))
-#+END_SRC
+You can find [[file:doc/queue.org][a more complete example in ~docs/~]].
 
 * Specifications
 
 For a detailed description of how a ~stateful-check~ specification has
 to be structured, see [[file:doc/specification.org][the specification document]].
+
+* Race condition detection
+
+For more information about how the race condition detection works, see [[file:doc/race-conditions.org][the notes on ~stateful-check~'s race condition detection]].
 
 * Related work
 
@@ -96,3 +137,8 @@ to be structured, see [[file:doc/specification.org][the specification document]]
 Copyright © 2018 Carlo Zancanaro
 
 Distributed under the MIT Licence.
+
+# Local Variables:
+# org-confirm-babel-evaluate: nil
+# nrepl-sync-request-timeout: nil
+# End:
