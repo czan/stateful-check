@@ -17,7 +17,8 @@
 
 (defn failure-exception? [ex]
   (and (instance? clojure.lang.ExceptionInfo ex)
-       (= (.getMessage ex) "Generative test failed.")))
+       (= (.getMessage ^clojure.lang.ExceptionInfo ex)
+          "Generative test failed.")))
 
 (defn failure-exception-data [ex]
   (ex-data ex))
@@ -87,7 +88,7 @@
                 (with-out-str
                   (.printStackTrace ^Throwable (:exception trace)
                                     (java.io.PrintWriter. *out*)))
-                (.toString (:exception trace)))
+                (.toString ^Object (:exception trace)))
               trace))))
 
 (defn print-execution
