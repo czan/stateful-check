@@ -8,7 +8,7 @@ Once a sequence of commands has been generated it is executed on a real system. 
 
 Finally, the results are verified. To do this, ~stateful-check~ will invoke each of the ~:postcondition~ functions in order to verify that they all return true. In the parallel case this is more difficult, but ~stateful-check~ will check to make sure that the observed results match /at least one/ of the expected execution orders (assuming each command is atomic).
 
-This clear separation of stages during execution means that no functions should interact with the SUT /except/ for the ~:command~ function of each command, and the ~:setup~ and ~:cleanup~ functions of the specification. It may still be necessary to generate commands where the results of previous commands are re-used as arguments to later commands. To facilitate this ~stateful-check~ uses "symbolic values" which are replaced with real values during the execution phase.
+This clear separation of stages during execution means that no functions should interact with the System Under Test (SUT) /except/ for the ~:command~ function of each command, and the ~:setup~ and ~:cleanup~ functions of the specification. It may still be necessary to generate commands where the results of previous commands are re-used as arguments to later commands. To facilitate this ~stateful-check~ uses "symbolic values" which are replaced with real values during the execution phase.
 
 * Commands
 
