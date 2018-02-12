@@ -110,10 +110,12 @@ We can now run the test, as shown above.
   (is (specification-correct? java-map-specification))
 
   ;; note that this call can take a long time, and may need to be run
-  ;; multiple times to provoke the failure
+  ;; multiple times to provoke a failure
   (is (specification-correct? java-map-specification
                               {:gen {:threads 2}
                                :run {:max-tries 100}}))
+  ;; there are a few ways this can fail; the most fun failure thus far
+  ;; was an NPE!
 #+END_SRC
 
 To view this example in one file, see [[file:test/stateful_check/java_map_test.clj][the relevant test file]].
