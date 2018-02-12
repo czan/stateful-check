@@ -110,16 +110,25 @@
 
 (defn specification-correct?
   "Test whether or not the specification matches reality. This
-  generates test cases and runs them.
+  generates test cases and runs them. If run with in an `is`, it will
+  report details (and pretty-print them) if it fails.
 
-  When used within an `is` expression two extra options can be
-  supplied under the :report key:
+  The `options` map consists of three potential keys: `:gen`, `:run`,
+  and `:report`, each of which influence a different part of the test.
 
-    :first-case? instructs the test-case printer to print the command
-  list prior to shrinking, as well as the smallest case found
+  `:gen` has three sub-keys:
+   - `:threads` specifies how many parallel threads to execute
+   - `:max-length` specifies a max length for command sequences
+   - `:max-size` specifies a maximum size for generated values
 
-    :print-stacktrace? instructs the test-case printer to print the
-  stacktrace of any exceptions thrown"
+  `:run` has three sub-keys:
+   - `:max-tries` specifies how attempts to make to fail a test
+   - `:num-tests` specifies how many tests to run
+   - `:seed` specifies the initial seed to use for generation
+
+  `:report` has two sub-keys, but only works within an `is`:
+   - `:first-case?` specifies whether to print the first failure
+   - `:stacktrace?` specifies whether to print exception stacktraces"
   ([specification] (specification-correct? specification nil))
   ([specification options]
    (true? (:result (run-specification specification options)))))
