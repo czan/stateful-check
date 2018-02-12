@@ -38,7 +38,8 @@
 
 (defn combine-cmds-with-traces [command result result-str]
   (let [last-str (pr-str result)]
-    (if (= last-str result-str)
+    (if (or (= last-str result-str)
+            (instance? CaughtException result))
       [command result-str]
       [command (str result-str
                     "\n    >> object may have been mutated later into " last-str " <<\n")])))
