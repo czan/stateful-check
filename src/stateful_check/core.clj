@@ -127,11 +127,11 @@
 ;; in defn doesn't work if you use the multi-arity form.
 (alter-meta! #'specification-correct? assoc :arglists
              `([~'specification]
-               [~'specification {:gen {:threads ~g/default-threads,
-                                       :max-length ~g/default-max-length,
+               [~'specification {:gen {:threads ~g/default-threads
+                                       :max-length ~g/default-max-length
                                        :max-size ~g/default-max-size}
-                                 :run {:max-tries ~default-max-tries,
-                                       :num-tests ~default-num-tests,
+                                 :run {:max-tries ~default-max-tries
+                                       :num-tests ~default-num-tests
                                        :seed (System/currentTimeMillis)}
                                  :report {:first-case? false
                                           :stacktrace? false}}]))
