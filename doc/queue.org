@@ -29,25 +29,25 @@ semantics:
 
 #+BEGIN_SRC clojure
   (def new-queue-specification
-    {:model/requires (fn [state] (nil? state))
-     :real/command #'new-queue
+    {:requires (fn [state] (nil? state))
+     :command #'new-queue
      :next-state (fn [state _ result] {:queue result, :elements []})})
 #+END_SRC
 
 This specification contains three elements:
 
-- ~:model/requires~ specifies that this command is only valid if the
+- ~:requires~ specifies that this command is only valid if the
   state of the system is ~nil~ (which in this case means: nothing has
   been done to the system yet)
 
-- ~:real/command~ specifies what to do to actually run this command.
+- ~:command~ specifies what to do to actually run this command.
   For this command we want to allocate a new queue.
 
 - ~:next-state~ denotes the effect that running this command will have
   on the state of the system. In this case running the ~new-queue~
   function will initialise the state. ~:elements~ is set to the empty
   vector because our queue starts off empty. ~:queue~ is set to the
-  result of calling the ~:real/command~ function to store it for later
+  result of calling the ~:command~ function to store it for later
   operations.
 
 In this instance the ~:next-state~ function is called when performing
@@ -72,22 +72,22 @@ Then its semantics:
 
 #+BEGIN_SRC clojure
   (def push-queue-specification
-    {:model/requires (fn [state] state)
-     :model/args (fn [state] [(:queue state) gen/nat])
-     :real/command #'push-queue
+    {:requires (fn [state] state)
+     :args (fn [state] [(:queue state) gen/nat])
+     :command #'push-queue
      :next-state (fn [state [_ val] _] (update-in state [:elements] conj val))})
 #+END_SRC
 
 This specification has one additional element over
 ~new-queue-specification~:
 
-- ~:model/args~ specifies a function which will provide a generator to
+- ~:args~ specifies a function which will provide a generator to
   generate arguments for ~push-queue~. What we pass is converted into
   a generator where possible. In this case we are returning the queue
   under test (~(:queue state)~) as well as a generated natural number
   (~gen/nat~).
 
-In addition to this, we can see that ~:model/requires~ merely requires
+In addition to this, we can see that ~:requires~ merely requires
 that there be something truthy in the state, and ~:next-state~ simply
 adds the command to the end of the ~:elements~ vector in the ~state~
 map.
@@ -103,16 +103,16 @@ Lastly, ~pop-queue~:
 
 #+BEGIN_SRC clojure
   (def pop-queue-specification
-    {:model/requires (fn [state] (seq (:elements state)))
-     :model/args (fn [state] [(:queue state)])
-     :real/command #'pop-queue
+    {:requires (fn [state] (seq (:elements state)))
+     :args (fn [state] [(:queue state)])
+     :command #'pop-queue
      :next-state (fn [state [queue] _] (update-in state [:elements] (comp vec next)))
-     :real/postcondition (fn [state _ [_] val] (= (first (:elements state)) val))})
+     :postcondition (fn [state _ [_] val] (= (first (:elements state)) val))})
 #+END_SRC
 
 This specification has one more element from ~push-queue-specification~:
 
-- ~:real/postcondition~ determines whether the result of performing
+- ~:postcondition~ determines whether the result of performing
   this action correctly matches the expectation (from the abstract
   state). In our case: we expect the value returned by ~pop-queue~ to
   be the first value in the ~:elements~ vector.
@@ -131,8 +131,7 @@ specification.
 #+END_SRC
 
 The ~:commands~ key just contains a map of each command spec we are
-using for this model. ~:model/generate-command~ is a function from the
-abstract state to a generator which will generate a new command.
+using for this model.
 
 Let's see what happens when we run this specification:
 

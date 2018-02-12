@@ -20,10 +20,10 @@
 (defn make-sequential-runners [cmd-objs]
   (mapv (fn [[handle cmd-obj & args]]
           (let [replacer (args-replacer args)
-                function (:real/command cmd-obj)]
+                function (:command cmd-obj)]
             (if function
               [handle #(apply function (replacer [] %))]
-              (throw (AssertionError. (str "No :real/command function found for "
+              (throw (AssertionError. (str "No :command function found for "
                                            (:name cmd-obj)
                                            " command"))))))
         cmd-objs))
@@ -72,7 +72,7 @@
                        (reduced false)
                        (let [replacer (args-replacer args)
                              replaced-args (replacer [] bindings)
-                             next-state (u/real-make-next-state cmd-obj state replaced-args result)]
+                             next-state (u/make-next-state cmd-obj state replaced-args result)]
                          (if (u/check-postcondition cmd-obj state next-state replaced-args result)
                            [next-state
                             (assoc bindings handle result)]

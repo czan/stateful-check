@@ -14,32 +14,32 @@
 ;;
 
 (def add-command
-  {:model/args (fn [_] [gen/nat])
-   :real/command #(swap! global-state conj %)
+  {:args (fn [_] [gen/nat])
+   :command #(swap! global-state conj %)
    :next-state (fn [state [arg] _]
                  (conj (or state #{}) arg))})
 
 (def remove-command
-  {:model/requires (fn [state] (seq state))
-   :model/args (fn [state] [(gen/elements state)])
-   :real/command #(swap! global-state disj %)
+  {:requires (fn [state] (seq state))
+   :args (fn [state] [(gen/elements state)])
+   :command #(swap! global-state disj %)
    :next-state (fn [state [arg] _]
                  (disj state arg))})
 
 (def contains?-command
-  {:model/requires (fn [state] (seq state))
-   :model/args (fn [state] [(gen/one-of [(gen/elements state) gen/nat])])
-   :real/command #(contains? @global-state %)
-   :real/postcondition (fn [state _ [value] result]
+  {:requires (fn [state] (seq state))
+   :args (fn [state] [(gen/one-of [(gen/elements state) gen/nat])])
+   :command #(contains? @global-state %)
+   :postcondition (fn [state _ [value] result]
                          (= (contains? state value) result))})
 
 (def empty?-command
-  {:real/command #(empty? @global-state)
-   :real/postcondition (fn [state _ _ result]
+  {:command #(empty? @global-state)
+   :postcondition (fn [state _ _ result]
                          (= (empty? state) result))})
 
 (def empty-command
-  {:real/command (fn [] (reset! global-state #{}))
+  {:command (fn [] (reset! global-state #{}))
    :next-state (fn [state _ _] #{})})
 
 ;;
@@ -53,7 +53,7 @@
               :empty? #'empty?-command
               :empty #'empty-command}
    :initial-state (constantly #{})
-   :real/setup #(reset! global-state #{})})
+   :setup #(reset! global-state #{})})
 
 (deftest atomic-set-test
   (is (specification-correct? specification)))

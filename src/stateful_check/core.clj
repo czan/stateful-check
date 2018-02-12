@@ -26,10 +26,9 @@
                                             (mapv (partial mapv vector)
                                                   (:parallel commands)
                                                   (:parallel results)))
-        init-state-fn (or (:model/initial-state spec)
-                          (:initial-state spec)
+        init-state-fn (or (:initial-state spec)
                           (constantly nil))
-        init-state (if (:real/setup spec)
+        init-state (if (:setup spec)
                      (init-state-fn (get bindings g/setup-var))
                      (init-state-fn))]
     (some #(r/valid-execution? % init-state bindings) interleavings)))
@@ -40,7 +39,7 @@
   ([spec options]
    (for-all [commands (g/commands-gen spec (:gen options))]
      (let [runners (r/commands->runners commands)
-           setup-fn (:real/setup spec)]
+           setup-fn (:setup spec)]
        (dotimes [try (get-in options [:run :max-tries] 1)]
          (let [setup-result (when-let [setup setup-fn]
                               (setup))]
@@ -57,7 +56,7 @@
                                                       (:parallel commands)
                                                       (:parallel-strings results))))))
              (finally
-               (when-let [cleanup (:real/cleanup spec)]
+               (when-let [cleanup (:cleanup spec)]
                  (if setup-fn
                    (cleanup setup-result)
                    (cleanup))))))))

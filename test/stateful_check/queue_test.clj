@@ -42,40 +42,40 @@
 ;;
 
 (def push-queue-command
-  {:model/args (fn [state] [(:queue state) gen/nat])
-   :real/command #'push-queue
+  {:args (fn [state] [(:queue state) gen/nat])
+   :command #'push-queue
    :next-state (fn [state [_ val] _]
                  (update-in state [:elements] conj val))
-   :real/postcondition (fn [_ _ _ result]
+   :postcondition (fn [_ _ _ result]
                          (nil? result))})
 
 (def push-queue-command-with-race-condition
-  (assoc push-queue-command :real/command #'push-queue-with-race-condition))
+  (assoc push-queue-command :command #'push-queue-with-race-condition))
 
 (def peek-queue-command
-  {:model/args (fn [state] [(:queue state)])
-   :model/precondition (fn [state _] (seq (:elements state)))
-   :real/command #'peek-queue
-   :real/postcondition (fn [state _ args val]
+  {:args (fn [state] [(:queue state)])
+   :precondition (fn [state _] (seq (:elements state)))
+   :command #'peek-queue
+   :postcondition (fn [state _ args val]
                          (= val (first (:elements state))))})
 
 (def pop-queue-command
-  {:model/requires (fn [state] (seq (:elements state)))
-   :model/args (fn [state] [(:queue state)])
-   :real/command #'pop-queue
+  {:requires (fn [state] (seq (:elements state)))
+   :args (fn [state] [(:queue state)])
+   :command #'pop-queue
    :next-state (fn [state _ _]
                  (update-in state [:elements] (comp vec next)))
-   :real/postcondition (fn [state _ args val]
+   :postcondition (fn [state _ args val]
                          (= val (first (:elements state))))})
 
 (def count-queue-command
-  {:model/args (fn [state] [(:queue state)])
-   :real/command #'count-queue
-   :real/postcondition (fn [state _ _ val]
+  {:args (fn [state] [(:queue state)])
+   :command #'count-queue
+   :postcondition (fn [state _ _ val]
                          (= val (count (:elements state))))})
 
 (def count-queue-constantly-zero-command
-  (assoc count-queue-command :real/command #'count-queue-constantly-zero))
+  (assoc count-queue-command :command #'count-queue-constantly-zero))
 
 ;;
 ;; Generative testing specification
@@ -91,10 +91,10 @@
    :initial-state (fn [queue]
                     {:queue queue,
                      :elements []})
-   :real/setup (fn []
+   :setup (fn []
                  (swap! queues-in-use inc)
                  (new-queue))
-   :real/cleanup (fn [state]
+   :cleanup (fn [state]
                    (swap! queues-in-use dec))})
 
 (def failing-queue-specification

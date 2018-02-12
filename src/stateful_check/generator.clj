@@ -8,7 +8,7 @@
 
 (defn- command-obj-gen [spec state]
   (let [unwrap #(if (var? %) @% %)]
-    (if-let [generate-command (:model/generate-command spec)]
+    (if-let [generate-command (:generate-command spec)]
       (gen/such-that #(u/check-requires % state)
                      (gen/fmap (fn [name]
                                  (assoc (unwrap (get (:commands spec) name))
@@ -20,7 +20,7 @@
                                               :name name)))
                                 (filter #(u/check-requires % state)))]
         (assert (seq valid-commands)
-                (str "At least one command must pass :model/requires with state: " (prn-str state)))
+                (str "At least one command must pass :requires with state: " (prn-str state)))
         (gen/elements valid-commands)))))
 
 (defn- command-gen [spec state]
@@ -38,7 +38,7 @@
                                   (let [[cmd-obj & args] (rose/root cmd-and-args-tree)
                                         result (first vars)]
                                     (if (u/check-precondition cmd-obj state args)
-                                      (let [next-state (u/model-make-next-state cmd-obj state args result)]
+                                      (let [next-state (u/make-next-state cmd-obj state args result)]
                                         (gen/gen-bind (command-sequence-tree-gen spec next-state (next vars))
                                                       (fn [[cmd-list-tail-tree next-next-state]]
                                                         (gen/gen-pure [(cons (rose/fmap #(cons result %)
@@ -122,7 +122,7 @@
                                           true))
                                       args)
                               (u/check-precondition cmd-obj state args))
-                       [(u/model-make-next-state cmd-obj state args handle)
+                       [(u/make-next-state cmd-obj state args handle)
                         (conj bindings handle)]
                        (reduced false)))
                    [state bindings] cmd-objs)))
@@ -139,13 +139,12 @@
                (range) parallel)))))
 
 (defn commands-gen [spec {:keys [threads max-length max-size]}]
-  (let [init-state-fn (or (:model/initial-state spec)
-                          (:initial-state spec)
+  (let [init-state-fn (or (:initial-state spec)
                           (constantly nil))
-        init-state (if (:real/setup spec)
+        init-state (if (:setup spec)
                      (init-state-fn setup-var)
                      (init-state-fn))
-        init-bindings (if (:real/setup spec)
+        init-bindings (if (:setup spec)
                         #{setup-var}
                         #{})]
     (->> (parallel-command-sequence-gen spec init-state {:max-length (or max-length 10)

@@ -51,9 +51,9 @@ model calling ~pop-queue~.
 Let's start with ~push-queue~:
 #+BEGIN_SRC clojure :results silent :session example
   (def push-queue-specification
-    {:model/args (fn [state]
+    {:args (fn [state]
                    [(:queue state) gen/nat])
-     :real/command #'push-queue
+     :command #'push-queue
      :next-state (fn [state [_ val] _]
                    (update-in state [:elements] conj val))})
 #+END_SRC
@@ -70,14 +70,14 @@ vector) in the state.
 Now how about ~pop-queue~?
 #+BEGIN_SRC clojure :results silent :session example
   (def pop-queue-specification
-    {:model/requires (fn [state]
+    {:requires (fn [state]
                        (seq (:elements state)))
-     :model/args (fn [state]
+     :args (fn [state]
                    [(:queue state)])
-     :real/command #'pop-queue
+     :command #'pop-queue
      :next-state (fn [state _ _]
                    (update-in state [:elements] (comp vec next)))
-     :real/postcondition (fn [prev-state _ _ val]
+     :postcondition (fn [prev-state _ _ val]
                            (= (-> prev-state :elements first)
                               val))})
 #+END_SRC
@@ -97,7 +97,7 @@ together in a system specification.
   (def queue-spec
     {:commands {:push #'push-queue-specification
                 :pop #'pop-queue-specification}
-     :real/setup #'new-queue
+     :setup #'new-queue
      :initial-state (fn [queue] {:queue queue, :elements []})})
 #+END_SRC
 

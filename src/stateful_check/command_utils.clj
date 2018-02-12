@@ -19,52 +19,40 @@
 
 (defn args-gen
   "Generate the arguments for a command, taking into account whether
-  or not the command declares a :model/args function."
+  or not the command declares a :args function."
   [command state]
-  (to-generator (if-let [args (:model/args command)]
+  (to-generator (if-let [args (:args command)]
                   (args state))))
 
 (defn check-requires
   "Check the requirements for a command to be generated at all, taking
-  into account whether or not the command declares a :model/requires
+  into account whether or not the command declares a :requires
   function."
   [command state]
-  (if-let [requires (:model/requires command)]
+  (if-let [requires (:requires command)]
     (requires state)
     true))
 
 (defn check-precondition
   "Check the precondition for a command, taking into account whether
-  or not the command declares a :model/precondition function."
+  or not the command declares a :precondition function."
   [command state args]
-  (if-let [precondition (:model/precondition command)]
+  (if-let [precondition (:precondition command)]
     (precondition state args)
     true))
 
-(defn model-make-next-state
+(defn make-next-state
   "Make the next state for a command, taking into account whether or
-  not the command declares a :model/next-state or :next-state
-  function."
+  not the command declares a :next-state function."
   [command state args result]
-  (if-let [next-state  (or (:model/next-state command)
-                           (:next-state command))]
-    (next-state state args result)
-    state))
-
-(defn real-make-next-state
-  "Make the next state for a command, taking into account whether or
-  not the command declares a :model/next-state or :next-state
-  function."
-  [command state args result]
-  (if-let [next-state  (or (:real/next-state command)
-                           (:next-state command))]
+  (if-let [next-state  (:next-state command)]
     (next-state state args result)
     state))
 
 (defn check-postcondition
   "Check the postcondition for a command, taking into account whether
-  or not the command declares a :real/postcondition function."
+  or not the command declares a :postcondition function."
   [command prev-state next-state args result]
-  (if-let [postcondition (:real/postcondition command)]
+  (if-let [postcondition (:postcondition command)]
     (postcondition prev-state next-state args result)
     true))
