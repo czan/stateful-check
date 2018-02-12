@@ -7,6 +7,9 @@
             [stateful-check.runner :as r])
   (:import [stateful_check.runner CaughtException]))
 
+(def default-num-tests 200)
+(def default-max-tries 1)
+
 (defn- make-failure-exception [sequential-trace parallel-trace]
   (ex-info "Generative test failed."
            {:sequential sequential-trace
@@ -47,7 +50,7 @@
    (for-all [commands (g/commands-gen spec (:gen options))]
      (let [runners (r/commands->runners commands)
            setup-fn (:setup spec)]
-       (dotimes [try (get-in options [:run :max-tries] 1)]
+       (dotimes [try (get-in options [:run :max-tries] default-max-tries)]
          (let [setup-result (when-let [setup setup-fn]
                               (setup))]
            (try
@@ -100,10 +103,10 @@
   returns the full quick-check result."
   ([specification] (run-specification specification nil))
   ([specification options]
-   (quick-check (get-in options [:run :num-tests] 200)
+   (quick-check (get-in options [:run :num-tests] default-num-tests)
                 (spec->property specification options)
                 :seed (get-in options [:run :seed] (System/currentTimeMillis))
-                :max-size (get-in options [:gen :max-size] 200))))
+                :max-size (get-in options [:gen :max-size] g/default-max-size))))
 
 (defn specification-correct?
   "Test whether or not the specification matches reality. This
@@ -123,15 +126,15 @@
 ;; We need this to be a separate form, for some reason. The attr-map
 ;; in defn doesn't work if you use the multi-arity form.
 (alter-meta! #'specification-correct? assoc :arglists
-             '([specification]
-               [specification {:gen {:threads 0,
-                                     :max-length 10,
-                                     :max-size 200}
-                               :run {:max-tries 1,
-                                     :num-tests 200,
-                                     :seed (System/currentTimeMillis)}
-                               :report {:first-case? false
-                                        :stacktrace? false}}]))
+             `([~'specification]
+               [~'specification {:gen {:threads ~g/default-threads,
+                                       :max-length ~g/default-max-length,
+                                       :max-size ~g/default-max-size}
+                                 :run {:max-tries ~default-max-tries,
+                                       :num-tests ~default-num-tests,
+                                       :seed (System/currentTimeMillis)}
+                                 :report {:first-case? false
+                                          :stacktrace? false}}]))
 
 (defmethod t/assert-expr 'specification-correct?
   [msg [_ specification options]]

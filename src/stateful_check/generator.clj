@@ -4,6 +4,10 @@
             [stateful-check.symbolic-values :as sv]
             [stateful-check.command-utils :as u]))
 
+(def default-max-length 5)
+(def default-threads 0)
+(def default-max-size 200)
+
 (def setup-var (sv/->RootVar "setup"))
 
 (defn- command-obj-gen [spec state]
@@ -59,12 +63,12 @@
                                    (index->letter thread-id)))))
        (range length)))
 
-(defn- parallel-command-sequence-gen [spec state {:keys [max-length max-size threads]}]
+(defn- parallel-command-sequence-gen [spec state {:keys [max-length threads]}]
   (let [[seq-length par-length] (if (map? max-length)
                                   ((juxt :sequential :parallel) max-length)
                                   [max-length max-length])
-        seq-length (or seq-length 10)
-        par-length (or par-length 10)]
+        seq-length (or seq-length default-max-length)
+        par-length (or par-length default-max-length)]
     (gen/sized
      (fn [size]
        (letfn [(parallel-commands-gen [n state]
@@ -137,7 +141,7 @@
                                      (update parallel i (comp vec next))))
                (range) parallel)))))
 
-(defn commands-gen [spec {:keys [threads max-length max-size]}]
+(defn commands-gen [spec {:keys [threads max-length]}]
   (let [init-state-fn (or (:initial-state spec)
                           (constantly nil))
         init-state (if (:setup spec)
@@ -147,8 +151,7 @@
                         #{setup-var}
                         #{})]
     (->> (parallel-command-sequence-gen spec init-state {:max-length max-length
-                                                         :threads (or threads 0)
-                                                         :max-size (or max-size 200)})
+                                                         :threads (or threads default-threads)})
          (gen/gen-fmap shrink-parallel-command-sequence)
          (gen/such-that (fn [cmds]
                           ;; we need to generate lists of commands
