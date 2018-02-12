@@ -144,7 +144,7 @@
         init-bindings (if (:setup spec)
                         #{setup-var}
                         #{})]
-    (->> (parallel-command-sequence-gen spec init-state {:max-length (or max-length 10)
+    (->> (parallel-command-sequence-gen spec init-state {:max-length max-length
                                                          :threads (or threads 0)
                                                          :max-size (or max-size 200)})
          (gen/gen-fmap shrink-parallel-command-sequence)
