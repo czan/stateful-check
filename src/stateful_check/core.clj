@@ -85,7 +85,7 @@
               trace))
     (if (and (instance? CaughtException trace)
              stacktrace?)
-      (.printStackTrace trace))))
+      (.printStackTrace ^Throwable trace))))
 
 (defn print-execution
   ([{:keys [sequential parallel]} stacktrace?]
@@ -138,12 +138,13 @@
 
 (defmethod t/assert-expr 'specification-correct?
   [msg [_ specification options]]
-  (let [result-sym (gensym "result")]
+  (let [result-sym (gensym "result")
+        smallest-sym (gensym "smallest")]
     `(let [spec# ~specification
            options# ~options
            results# (run-specification spec# options#)
            ~result-sym (:result results#)
-           smallest# (:result (:shrunk results#))]
+           ~smallest-sym (:result (:shrunk results#))]
        (if (true? ~result-sym)
          (t/do-report {:type :pass,
                        :message ~msg,
@@ -157,11 +158,13 @@
                                     (if (failure-exception? ~result-sym)
                                       (print-execution (failure-exception-data ~result-sym)
                                                        (get-in options# [:report :stacktrace?] false))
-                                      (.printStackTrace ~result-sym (java.io.PrintWriter. *out*))))
-                                  (if (failure-exception? smallest#)
-                                    (print-execution (failure-exception-data smallest#)
+                                      (.printStackTrace ~(vary-meta result-sym assoc :tag `Throwable)
+                                                        (java.io.PrintWriter. *out*))))
+                                  (if (failure-exception? ~smallest-sym)
+                                    (print-execution (failure-exception-data ~smallest-sym)
                                                      (get-in options# [:report :stacktrace?] false))
-                                    (.printStackTrace smallest# (java.io.PrintWriter. *out*))))
+                                    (.printStackTrace ~(vary-meta smallest-sym assoc :tag `Throwable)
+                                                      (java.io.PrintWriter. *out*))))
                        :expected (symbol "all executions to match specification"),
                        :actual (symbol "the above execution did not match the specification")}))
        (true? ~result-sym))))

@@ -3,7 +3,7 @@
             [clojure.test.check.generators :as gen]
             [stateful-check.core :refer [specification-correct?]]))
 
-(def system-under-test (java.util.TreeMap.))
+(def ^java.util.Map system-under-test (java.util.TreeMap.))
 
 (def test-keys ["" "a" "house" "tree" "λ"])
 
