@@ -12,6 +12,13 @@
            {:sequential sequential-trace
             :parallel parallel-trace}))
 
+(defn failure-exception? [ex]
+  (and (instance? clojure.lang.ExceptionInfo ex)
+       (= (.getMessage ex) "Generative test failed.")))
+
+(defn failure-exception-data [ex]
+  (ex-data ex))
+
 (defn- some-valid-interleaving [spec commands results bindings]
   (let [interleavings (g/every-interleaving (mapv vector
                                                   (:sequential commands)
@@ -136,10 +143,14 @@
                                   ~(when msg
                                      `(println ~msg))
                                   (when (get-in options# [:report :first-case?] false)
-                                    (print-execution (ex-data ~result-sym)
-                                                     (get-in options# [:report :stacktrace?] false)))
-                                  (print-execution (ex-data smallest#)
-                                                   (get-in options# [:report :stacktrace?] false)))
+                                    (if (failure-exception? ~result-sym)
+                                      (print-execution (failure-exception-data ~result-sym)
+                                                       (get-in options# [:report :stacktrace?] false))
+                                      (.printStackTrace ~result-sym (java.io.PrintWriter. *out*))))
+                                  (if (failure-exception? smallest#)
+                                    (print-execution (failure-exception-data smallest#)
+                                                     (get-in options# [:report :stacktrace?] false))
+                                    (.printStackTrace smallest# (java.io.PrintWriter. *out*))))
                        :expected (symbol "all executions to match specification"),
                        :actual (symbol "the above execution did not match the specification")}))
        (true? ~result-sym))))
