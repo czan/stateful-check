@@ -25,8 +25,7 @@ This will be the final result, once we have assembled our specification:
 
   ;; but a failure when run on multiple threads
   (is (specification-correct? java-map-specification
-                              {:gen {:threads 2
-                                     :max-length 4}
+                              {:gen {:threads 2}
                                :run {:max-tries 100}}))
   ;; FAIL in () (form-init4244174681303601076.clj:54)
   ;; Sequential prefix:
@@ -106,8 +105,7 @@ We can now run the test, as shown above.
   ;; note that this call can take a long time, and may need to be run
   ;; multiple times to provoke the failure
   (is (specification-correct? java-map-specification
-                              {:gen {:threads 2
-                                     :max-length 4}
+                              {:gen {:threads 2}
                                :run {:max-tries 100}}))
 #+END_SRC
 
