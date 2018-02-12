@@ -109,7 +109,7 @@
   (let [val @queues-in-use]
     (is (specification-correct? queue-specification))
     (is (specification-correct? queue-specification {:gen {:threads 2
-                                                           :max-length 10}
+                                                           :max-length 4}
                                                      :run {:max-tries 10}}))
     (is (= val @queues-in-use) "setup/cleanup should both be run for all tests (pass and fail)")))
 

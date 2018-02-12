@@ -13,8 +13,8 @@
                  (+ state arg))})
 
 (def throw-command
-  {:command #(when (= @counter 13)
-               (throw (RuntimeException. "I don't like 13!")))})
+  {:command #(when (> @counter 13)
+               (throw (RuntimeException. "I don't like numbers bigger than 13!")))})
 
 (def spec
   {:commands {:inc #'inc-command

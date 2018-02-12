@@ -28,8 +28,7 @@
 (deftest java-map-passes-sequentially
   (is (specification-correct? java-map-specification)))
 
-(deftest ^:slow java-map-fails-concurrently
+(deftest java-map-fails-concurrently
   (is (not (specification-correct? java-map-specification
-                                   {:gen {:threads 2
-                                          :max-length 4}
+                                   {:gen {:threads 2}
                                     :run {:max-tries 100}}))))
