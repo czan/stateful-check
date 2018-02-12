@@ -19,9 +19,13 @@
 
 (defn make-sequential-runners [cmd-objs]
   (mapv (fn [[handle cmd-obj & args]]
-          (let [replacer (args-replacer args)]
-            [handle (fn [bindings]
-                      (u/run-command cmd-obj (replacer [] bindings)))]))
+          (let [replacer (args-replacer args)
+                function (:real/command cmd-obj)]
+            (if function
+              [handle #(apply function (replacer [] %))]
+              (throw (AssertionError. (str "No :real/command function found for "
+                                           (:name cmd-obj)
+                                           " command"))))))
         cmd-objs))
 
 (defrecord CaughtException [exception])

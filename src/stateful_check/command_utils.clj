@@ -41,14 +41,6 @@
     (precondition state args)
     true))
 
-(defn run-command
-  "Run the command's action. If the command has no action then an
-  AssertionError will be thrown."
-  [command args]
-  (if-let [real-command (:real/command command)]
-    (apply real-command args)
-    (throw (AssertionError. (str "No :real/command function found for " (:name command) " command")))))
-
 (defn model-make-next-state
   "Make the next state for a command, taking into account whether or
   not the command declares a :model/next-state or :next-state
