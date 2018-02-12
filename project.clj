@@ -8,4 +8,6 @@
   :test-selectors {:default #(not (or (:slow %)
                                       (:interactive %)))
                    :interactive :interactive
-                   :slow :slow})
+                   :slow :slow}
+  :repositories [["releases" {:url "https://clojars.org/repo"
+                              :creds :gpg}]])
