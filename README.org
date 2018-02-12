@@ -42,6 +42,12 @@ This will be the final result, once we have assembled our specification:
   ;; => false
 #+END_SRC
 
+~TreeMap~ fails to meet our specification (presented below) because it is possible to generate command lists which do not correspond to a sequential execution. In this case, there are three possible ways for these commands to be organised:
+ - ~4a~, ~2b~, then ~4b~
+ - ~2b~, ~4a~, then ~4b~
+ - ~2b~, ~4b~, then ~4a~
+but none of these sequential executions match the output that we have seen. In any of them, we would expect ~4b~ to have returned ~0~ instead of ~nil~. Thus, we have found a race condition in ~java.util.TreeMap~.
+
 ** Setup
 
 To start off with we'll need to require some namespaces that we'll need later:
