@@ -31,3 +31,5 @@ This will now run the tests using at most ~2~ threads, with each thread (as well
                                                               :parallel 5}}
                                            :run {:max-tries 10}}))
 #+END_EXAMPLE
+
+Unfortunately ~stateful-check~ is fairly limited. While it can find bugs, it is not guaranteed to do so. A properly formed specification will never give a false positive: if the test failed then there is a bug somewhere - either in your specification or in your system. Unfortunately it is possible to give false negatives: tests which pass despite the presence of bugs.
