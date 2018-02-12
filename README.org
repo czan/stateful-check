@@ -117,7 +117,7 @@ We can now run the test, as shown above.
 
 To view this example in one file, see [[file:test/stateful_check/java_map_test.clj][the relevant test file]].
 
-If you'd like to read more, you can read [[file:doc/queue.org][a more complete of testing a queue]]. Alternatively you can try running the above test with a ~java.util.HashMap~ instead. Are the failures that you see different to the ~java.util.TreeMap~?
+If you'd like to read more, you can read [[file:doc/queue.org][a more complete of testing a queue]]. Alternatively you can try running the above test with a ~java.util.HashMap~ instead. Is it easier, or harder, to make it fail than the ~TreeMap~? Are the failures that you see different to the ~TreeMap~?
 
 * Specifications
 
