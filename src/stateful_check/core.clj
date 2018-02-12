@@ -38,11 +38,12 @@
 
 (defn combine-cmds-with-traces [command result result-str]
   (let [last-str (pr-str result)]
-    (if (or (= last-str result-str)
-            (instance? CaughtException result))
-      [command result-str]
-      [command (str result-str
-                    "\n    >> object may have been mutated later into " last-str " <<\n")])))
+    [command
+     (cond
+       (instance? CaughtException result) result
+       (= last-str result-str) result-str
+       :else (str result-str
+                  "\n    >> object may have been mutated later into " last-str " <<\n"))]))
 
 (defn spec->property
   "Turn a specification into a testable property."
@@ -82,11 +83,12 @@
             (cons (:name cmd)
                   args)
             (if (instance? CaughtException trace)
-              (.toString (:exception trace))
-              trace))
-    (if (and (instance? CaughtException trace)
-             stacktrace?)
-      (.printStackTrace ^Throwable trace))))
+              (if stacktrace?
+                (with-out-str
+                  (.printStackTrace ^Throwable (:exception trace)
+                                    (java.io.PrintWriter. *out*)))
+                (.toString (:exception trace)))
+              trace))))
 
 (defn print-execution
   ([{:keys [sequential parallel]} stacktrace?]
