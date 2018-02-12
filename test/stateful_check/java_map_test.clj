@@ -3,42 +3,33 @@
             [clojure.test.check.generators :as gen]
             [stateful-check.core :refer [specification-correct?]]))
 
-(def test-keys ["a" "b"])
-;; ["" "a" "house" "tree" "λ"]
+(def system-under-test (java.util.TreeMap.))
+
+(def test-keys ["" "a" "house" "tree" "λ"])
 
 (def put-command
-  {:args (fn [state]
-           [(:map state)
-            (gen/elements test-keys)
-            gen/int])
-   :command (fn [^java.util.Map map key val]
-              (.put map key val))
-   :next-state (fn [state [m k v] _]
-                 (update state :contents assoc k v))})
+  {:args (fn [state] [(gen/elements test-keys) gen/int])
+   :command #(.put system-under-test %1 %2)
+   :next-state (fn [state [k v] _]
+                 (assoc state k v))})
 
 (def get-command
-  {:requires (fn [state]
-               (seq (:contents state)))
-   :args (fn [state]
-           [(:map state)
-            (gen/elements test-keys)])
-   :command (fn [^java.util.Map map key]
-              (.get map key))
-   :postcondition (fn [prev-state _ [m k] val]
-                    (= (get-in prev-state [:contents k])
-                       val))})
+  {:requires (fn [state] (seq state))
+   :args (fn [state] [(gen/elements test-keys)])
+   :command #(.get system-under-test %1)
+   :postcondition (fn [prev-state _ [k] val]
+                    (= (get prev-state k) val))})
 
 (def java-map-specification
   {:commands {:put #'put-command
               :get #'get-command}
-   :initial-state (fn [setup] {:map setup, :contents {}})
-   :setup #(java.util.TreeMap.)})
+   :setup #(.clear system-under-test)})
 
 (deftest java-map-passes-sequentially
   (is (specification-correct? java-map-specification)))
 
 (deftest ^:slow java-map-fails-concurrently
   (is (not (specification-correct? java-map-specification
-                                   {:gen {:threads 2}
-                                    :run {:max-tries 10
-                                          :num-tests 200}}))))
+                                   {:gen {:threads 2
+                                          :max-length 4}
+                                    :run {:max-tries 100}}))))
