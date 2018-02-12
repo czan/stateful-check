@@ -61,8 +61,10 @@
 
 (defn- parallel-command-sequence-gen [spec state {:keys [max-length max-size threads]}]
   (let [[seq-length par-length] (if (map? max-length)
-                            ((juxt :sequential :parallel) max-length)
-                            [max-length max-length])]
+                                  ((juxt :sequential :parallel) max-length)
+                                  [max-length max-length])
+        seq-length (or seq-length 10)
+        par-length (or par-length 10)]
     (gen/sized
      (fn [size]
        (letfn [(parallel-commands-gen [n state]
