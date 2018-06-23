@@ -149,40 +149,43 @@
                                  :report {:first-case? false
                                           :stacktrace? false}}]))
 
+(defn report-result [msg spec options results]
+  ;; ~result-sym (:result results#)
+  ;; ~smallest-sym (:result (:shrunk results#))
+  (let [result (:result results)
+        smallest (get-in results [:shrunk :result])]
+    (if (true? result)
+      (t/do-report {:type :pass,
+                    :message msg,
+                    :expected true,
+                    :actual true})
+      (t/do-report {:type :fail,
+                    :message (with-out-str
+                               (when msg
+                                 (println msg))
+                               (when (get-in options [:report :first-case?] false)
+                                 (println "  First failing test case")
+                                 (println "  -----------------------------")
+                                 (if (failure-exception? result)
+                                   (print-execution (failure-exception-data result)
+                                                    (get-in options [:report :stacktrace?] false))
+                                   (.printStackTrace ^Throwable result
+                                                     ^java.io.PrintWriter *out*))
+                                 (println)
+                                 (println "  Smallest case after shrinking")
+                                 (println "  -----------------------------"))
+                               (if (failure-exception? smallest)
+                                 (print-execution (failure-exception-data smallest)
+                                                  (get-in options [:report :stacktrace?] false))
+                                 (.printStackTrace ^Throwable smallest
+                                                   ^java.io.PrintWriter *out*)))
+                    :expected (symbol "all executions to match specification"),
+                    :actual (symbol "the above execution did not match the specification")}))
+    (true? result)))
+
 (defmethod t/assert-expr 'specification-correct?
   [msg [_ specification options]]
-  (let [result-sym (gensym "result")
-        smallest-sym (gensym "smallest")]
-    `(let [spec# ~specification
-           options# ~options
-           results# (run-specification spec# options#)
-           ~result-sym (:result results#)
-           ~smallest-sym (:result (:shrunk results#))]
-       (if (true? ~result-sym)
-         (t/do-report {:type :pass,
-                       :message ~msg,
-                       :expected true,
-                       :actual true})
-         (t/do-report {:type :fail,
-                       :message (with-out-str
-                                  ~(when msg
-                                     `(println ~msg))
-                                  (when (get-in options# [:report :first-case?] false)
-                                    (println "  First failing test case")
-                                    (println "  -----------------------------")
-                                    (if (failure-exception? ~result-sym)
-                                      (print-execution (failure-exception-data ~result-sym)
-                                                       (get-in options# [:report :stacktrace?] false))
-                                      (.printStackTrace ~(vary-meta result-sym assoc :tag `Throwable)
-                                                        (java.io.PrintWriter. *out*)))
-                                    (println)
-                                    (println "  Smallest case after shrinking")
-                                    (println "  -----------------------------"))
-                                  (if (failure-exception? ~smallest-sym)
-                                    (print-execution (failure-exception-data ~smallest-sym)
-                                                     (get-in options# [:report :stacktrace?] false))
-                                    (.printStackTrace ~(vary-meta smallest-sym assoc :tag `Throwable)
-                                                      (java.io.PrintWriter. *out*))))
-                       :expected (symbol "all executions to match specification"),
-                       :actual (symbol "the above execution did not match the specification")}))
-       (true? ~result-sym))))
+  `(let [spec# ~specification
+         options# ~options
+         results# (run-specification spec# options#)]
+     (report-result ~msg spec# options# results#)))
