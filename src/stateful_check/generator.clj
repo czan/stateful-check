@@ -35,21 +35,23 @@
                               (u/args-gen cmd-obj state))))))
 
 (defn- command-sequence-tree-gen [spec state vars]
-  (gen/frequency
-   [[1 (gen/gen-pure [[] state])]
-    [(count vars) (gen/gen-bind (command-gen spec state)
-                                (fn [cmd-and-args-tree]
-                                  (let [[cmd-obj & args] (rose/root cmd-and-args-tree)
-                                        result (first vars)]
-                                    (if (u/check-precondition cmd-obj state args)
-                                      (let [next-state (u/make-next-state cmd-obj state args result)]
-                                        (gen/gen-bind (command-sequence-tree-gen spec next-state (next vars))
-                                                      (fn [[cmd-list-tail-tree next-next-state]]
-                                                        (gen/gen-pure [(cons (rose/fmap #(cons result %)
-                                                                                        cmd-and-args-tree)
-                                                                             cmd-list-tail-tree)
-                                                                       next-next-state]))))
-                                      (command-sequence-tree-gen spec state vars)))))]]))
+  (gen/gen-bind (gen/choose 0 (count vars))
+                (fn [choice]
+                  (if (zero? (rose/root choice))
+                    (gen/gen-pure [[] state])
+                    (gen/gen-bind (command-gen spec state)
+                                  (fn [cmd-and-args-tree]
+                                    (let [[cmd-obj & args] (rose/root cmd-and-args-tree)
+                                          result (first vars)]
+                                      (if (u/check-precondition cmd-obj state args)
+                                        (let [next-state (u/make-next-state cmd-obj state args result)]
+                                          (gen/gen-bind (command-sequence-tree-gen spec next-state (next vars))
+                                                        (fn [[cmd-list-tail-tree next-next-state]]
+                                                          (gen/gen-pure [(cons (rose/fmap #(cons result %)
+                                                                                          cmd-and-args-tree)
+                                                                               cmd-list-tail-tree)
+                                                                         next-next-state]))))
+                                        (command-sequence-tree-gen spec state vars)))))))))
 
 ;; if the test requires more than 26 threads then I am impressed
 (def ^:private thread-names "abcdefghijklmnopqrstuvwxzy")
