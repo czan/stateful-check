@@ -5,9 +5,7 @@
             :url "https://opensource.org/licenses/MIT"}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/test.check "0.9.0"]]
-  :test-selectors {:default #(not (or (:slow %)
-                                      (:interactive %)))
-                   :interactive :interactive
-                   :slow :slow}
+  :test-selectors {:default #(not (:interactive %))
+                   :interactive :interactive}
   :repositories [["releases" {:url "https://clojars.org/repo"
                               :creds :gpg}]])
