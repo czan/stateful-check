@@ -9,6 +9,7 @@
 
 (def default-num-tests 200)
 (def default-max-tries 1)
+(def default-timeout-ms 0)
 
 (defn- make-failure-exception [sequential-trace parallel-trace]
   (ex-info "Generative test failed."
@@ -41,6 +42,7 @@
   (let [last-str (pr-str result)]
     [command
      (cond
+       (= ::r/unevaluated result) result
        (instance? CaughtException result) result
        (= last-str result-str) result-str
        :else (str result-str
@@ -60,7 +62,7 @@
              (let [bindings (if setup-fn
                               {g/setup-var setup-result}
                               {})
-                   results (r/runners->results runners bindings)]
+                   results (r/runners->results runners bindings (get-in options [:run :timeout-ms] default-timeout-ms))]
                (when-not (some-valid-interleaving spec commands results bindings)
                  (throw (make-failure-exception (mapv combine-cmds-with-traces
                                                       (:sequential commands)
@@ -70,6 +72,18 @@
                                                       (:parallel commands)
                                                       (:parallel results)
                                                       (:parallel-strings results))))))
+             (catch clojure.lang.ExceptionInfo ex
+               (if (= (.getMessage ex) "Timed out")
+                 (let [results (ex-data ex)]
+                   (throw (make-failure-exception (mapv combine-cmds-with-traces
+                                                        (:sequential commands)
+                                                        (:sequential results)
+                                                        (:sequential-strings results))
+                                                  (mapv (partial mapv combine-cmds-with-traces)
+                                                        (:parallel commands)
+                                                        (:parallel results)
+                                                        (:parallel-strings results)))))
+                 (throw ex)))
              (finally
                (when-let [cleanup (:cleanup spec)]
                  (if setup-fn
@@ -79,17 +93,20 @@
 
 (defn- print-sequence [commands stacktrace?]
   (doseq [[[handle cmd & args] trace] commands]
-    (printf "  %s = %s = %s\n"
+    (printf "  %s = %s %s\n"
             (pr-str handle)
             (cons (:name cmd)
                   args)
-            (if (instance? CaughtException trace)
-              (if stacktrace?
-                (with-out-str
-                  (.printStackTrace ^Throwable (:exception trace)
-                                    (java.io.PrintWriter. *out*)))
-                (.toString ^Object (:exception trace)))
-              trace))))
+            (if (= ::r/unevaluated trace)
+              ""
+              (str " = "
+                   (if (instance? CaughtException trace)
+                     (if stacktrace?
+                       (with-out-str
+                         (.printStackTrace ^Throwable (:exception trace)
+                                           (java.io.PrintWriter. *out*)))
+                       (.toString ^Object (:exception trace)))
+                     trace))))))
 
 (defn print-execution
   ([{:keys [sequential parallel]} stacktrace?]
@@ -129,10 +146,22 @@
    - `:max-tries` specifies how attempts to make to fail a test
    - `:num-tests` specifies how many tests to run
    - `:seed` specifies the initial seed to use for generation
+   - `:timeout-ms` specifies the maximum number of milliseconds that a
+     test is permitted to run for - taking longer is considered a
+     failure (default: 0, meaning no timeout; see NOTE below for more
+     details)
 
   `:report` has two sub-keys, but only works within an `is`:
    - `:first-case?` specifies whether to print the first failure
-   - `:stacktrace?` specifies whether to print exception stacktraces"
+   - `:stacktrace?` specifies whether to print exception stacktraces
+
+  The `:timeout-ms` option is unsafe in general, but may be helpful in
+  some circumstances. It allows you to categorise a test as a failure
+  if it takes more than a given time, but each of the threads must
+  respond to being interrupted by completing and shutting down. If
+  these threads do not shut themselves down then they may continue to
+  consume system resources (CPU and memory, among other things),
+  impacting other tests."
   ([specification] (specification-correct? specification nil))
   ([specification options]
    (true? (:result (run-specification specification options)))))
@@ -145,7 +174,8 @@
                                        :max-size ~g/default-max-size}
                                  :run {:max-tries ~default-max-tries
                                        :num-tests ~default-num-tests
-                                       :seed (System/currentTimeMillis)}
+                                       :seed (System/currentTimeMillis)
+                                       :timeout-ms ~default-timeout-ms}
                                  :report {:first-case? false
                                           :stacktrace? false}}]))
 
