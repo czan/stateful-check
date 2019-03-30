@@ -1,3 +1,11 @@
+* 0.4.1
+
+- Print out failing seed ([#8](https://github.com/czan/stateful-check/issues/8)).
+
+- Add ~:timeout-ms~ option to fail a test after a certain amount of time (suggestion made after Clj-Syd presentation).
+
+- Add forward compatibility for ~clojure.test.check~ version ~0.10.0-alpha4~.
+
 * 0.4.0
 
 Many, many, many changes. I'll try to go through them.
