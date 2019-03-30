@@ -142,7 +142,7 @@ For more information about how the race condition detection works, see [[file:do
 
 * License
 
-Copyright © 2018 Carlo Zancanaro
+Copyright © 2019 Carlo Zancanaro
 
 Distributed under the MIT Licence.
 
