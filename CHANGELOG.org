@@ -1,6 +1,6 @@
 * 0.4.1
 
-- Print out failing seed ([#8](https://github.com/czan/stateful-check/issues/8)).
+- Print out failing seed ([[https://github.com/czan/stateful-check/issues/8][#8]]).
 
 - Add ~:timeout-ms~ option to fail a test after a certain amount of time (suggestion made after Clj-Syd presentation).
 
