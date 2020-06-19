@@ -139,7 +139,7 @@ For more information about how the race condition detection works, see [[file:do
 * Related talks
 
 - [[https://www.youtube.com/watch?v=zi0rHwfiX1Q][Testing the Hard Stuff and Staying Sane]] - John Hughes, 2014, the inspiration for this library
-- [[https://www.youtube.com/watch?v=xw8ZFU8CGdA][How to do Stateful Property Testing in Clojure]] - Magnus Kvalevåg, 2019, ~stateful-check~ is mentioned starting at [[https://www.youtube.com/watch?v=xw8ZFU8CGdA&t=571][9:31]])
+- [[https://www.youtube.com/watch?v=xw8ZFU8CGdA][How to do Stateful Property Testing in Clojure]] - Magnus Kvalevåg, 2019, (~stateful-check~ is mentioned starting at [[https://www.youtube.com/watch?v=xw8ZFU8CGdA&t=571][9:31]])
 
 * Future work
 
