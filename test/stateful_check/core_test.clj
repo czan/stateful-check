@@ -1,6 +1,7 @@
 (ns stateful-check.core-test
   (:require [clojure
              [set :as set]
+             [string :as str]
              [test :refer :all]]
             [clojure.test.check.generators :as gen]
             [stateful-check.core :refer :all]))
@@ -170,3 +171,33 @@
 
 (deftest full-set-test
   (is (specification-correct? full-set-spec)))
+
+
+
+
+
+
+
+
+(def throwing-postcondition-command
+  {:command (constantly nil)
+   :postcondition (fn [prev-state next-state args result]
+                    (throw (Exception. "this is an unfortunate error")))})
+
+(def throwing-postcondition-spec
+  {:commands {:run #'throwing-postcondition-command}})
+
+(defmacro capturing-test-output [& body]
+  `(let [message# (volatile! nil)]
+     (with-redefs [clojure.test/do-report
+                   (fn [details#]
+                     (assert (= (:type details#) :fail))
+                     (vreset! message# (:message details#)))]
+       ~@body
+       @message#)))
+
+(deftest throwing-postcondition-test
+  (is (str/includes?
+       (capturing-test-output
+        (is (specification-correct? throwing-postcondition-spec)))
+       "this is an unfortunate error")))
