@@ -191,29 +191,30 @@
                     :actual true})
       (t/do-report {:type :fail,
                     :message (with-out-str
-                               (when msg
-                                 (println msg))
-                               (when (get-in options [:report :first-case?] false)
-                                 (println "  First failing test case")
-                                 (println "  -----------------------------")
-                                 (if (failure-exception? result)
-                                   (print-execution (failure-exception-data result)
+                               (binding [*out* (java.io.PrintWriter. *out*)]
+                                 (when msg
+                                   (println msg))
+                                 (when (get-in options [:report :first-case?] false)
+                                   (println "  First failing test case")
+                                   (println "  -----------------------------")
+                                   (if (failure-exception? result)
+                                     (print-execution (failure-exception-data result)
+                                                      (get-in options [:report :stacktrace?] false))
+                                     (.printStackTrace ^Throwable result
+                                                       ^java.io.PrintWriter *out*))
+                                   (println)
+                                   (println "  Smallest case after shrinking")
+                                   (println "  -----------------------------"))
+                                 (if (failure-exception? smallest)
+                                   (print-execution (failure-exception-data smallest)
                                                     (get-in options [:report :stacktrace?] false))
-                                   (.printStackTrace ^Throwable result
+                                   (.printStackTrace ^Throwable smallest
                                                      ^java.io.PrintWriter *out*))
                                  (println)
-                                 (println "  Smallest case after shrinking")
-                                 (println "  -----------------------------"))
-                               (if (failure-exception? smallest)
-                                 (print-execution (failure-exception-data smallest)
-                                                  (get-in options [:report :stacktrace?] false))
-                                 (.printStackTrace ^Throwable smallest
-                                                   ^java.io.PrintWriter *out*))
-                               (println)
-                               (println "Seed:" (:seed results))
-                               (when (> (get-in options [:gen :threads] 0) 1)
-                                 (println (str "  Note: Test cases with multiple threads are not deterministic, so using the\n"
-                                               "        same seed does not guarantee the same result."))))
+                                 (println "Seed:" (:seed results))
+                                 (when (> (get-in options [:gen :threads] 0) 1)
+                                   (println (str "  Note: Test cases with multiple threads are not deterministic, so using the\n"
+                                                 "        same seed does not guarantee the same result.")))))
                     :expected (symbol "all executions to match specification"),
                     :actual (symbol "the above execution did not match the specification")}))
     (true? result)))

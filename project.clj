@@ -1,4 +1,4 @@
-(defproject org.clojars.czan/stateful-check "0.4.1"
+(defproject org.clojars.czan/stateful-check "0.4.2-SNAPSHOT"
   :description "Stateful generative testing in clojure"
   :url "https://github.com/czan/stateful-check"
   :license {:name "MIT"
