@@ -13,6 +13,8 @@
 
 - Fix shrinking of parallel command sequences. Due to a bug, shrinking of parallel command sequences only explored removing a single command, rather than removing pairs of commands. This may have led to poorer shrinks for parallel test cases.
 
+- Add the ability to customise the shrink strategy for a run. The default shrink strategy is the same as before, but you can use the ~:gen~ ~:shrink-strategies~ option to tune shrinking for your use case. See ~stateful-check.shrink-strategies~ for the currently available strategies, or you can write your own (although this is undocumented).
+
 * 0.4.2
 
 - Fix printing of exceptions within postconditions ([[https://github.com/czan/stateful-check/issues/12][#12]]).

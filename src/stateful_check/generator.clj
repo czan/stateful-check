@@ -2,11 +2,18 @@
   (:require [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]
             [stateful-check.symbolic-values :as sv]
-            [stateful-check.command-utils :as u]))
+            [stateful-check.command-utils :as u]
+            [stateful-check.shrink-strategies :as shrink]))
 
 (def default-max-length 5)
 (def default-threads 0)
 (def default-max-size 200)
+(def default-shrink-strategies
+  [(shrink/remove-n-commands-from-sequential-prefix 1)
+   (shrink/remove-n-commands-from-sequential-prefix 2)
+   (shrink/pull-parallel-into-sequential)
+   (shrink/remove-n-commands-from-parallel-threads 1)
+   (shrink/remove-n-commands-from-parallel-threads 2)])
 
 (def setup-var (sv/->RootVar "setup"))
 
@@ -87,34 +94,15 @@
                                                      :parallel parallel-trees}))))))))
 
 (defn- shrink-parallel-command-sequence
-  ([{:keys [sequential parallel]}] (shrink-parallel-command-sequence sequential parallel))
-  ([sequential parallel]
+  ([strategies {:keys [sequential parallel]}]
+   (shrink-parallel-command-sequence strategies sequential parallel))
+  ([strategies sequential parallel]
    (let [parallel (filterv seq parallel)]
      (rose/make-rose {:sequential (mapv rose/root sequential)
-                      :parallel (mapv #(mapv rose/root %) parallel)}
-                     (concat
-                      (for [sequential (rose/remove sequential)]
-                        ;; remove/shrink a command from the sequential prefix
-                        (shrink-parallel-command-sequence sequential parallel))
-                      (for [[i thread] (map vector (range) parallel)
-                            thread (rose/remove thread)]
-                        ;; remove/shrink a command from a parallel thread
-                        (shrink-parallel-command-sequence sequential
-                                                          (assoc parallel i thread)))
-                      (for [[i thread] (map vector (range) parallel)]
-                        ;; pull one of the first parallel commands into the sequential prefix
-                        (shrink-parallel-command-sequence (conj sequential (first thread))
-                                                          (update parallel i (comp vec next))))
-                      (for [sequential (rose/remove sequential)
-                            sequential (rose/remove sequential)]
-                        ;; remove/shrink two command from the sequential prefix
-                        (shrink-parallel-command-sequence sequential parallel))
-                      (for [[i thread] (map vector (range) parallel)
-                            thread (rose/remove thread)
-                            thread (rose/remove thread)]
-                        ;; remove/shrink two commands from a parallel thread
-                        (shrink-parallel-command-sequence sequential
-                                                          (assoc parallel i thread))))))))
+                      :parallel   (mapv #(mapv rose/root %) parallel)}
+                     (for [shrink    (or strategies default-shrink-strategies)
+                           [seq par] (shrink sequential parallel)]
+                       (shrink-parallel-command-sequence strategies seq par))))))
 
 (defn- valid-commands? [cmd-objs state bindings]
   (boolean (reduce (fn [[state bindings] [handle cmd-obj & args]]
@@ -137,7 +125,7 @@
                                      (update parallel i (comp vec next))))
                (range) parallel)))))
 
-(defn commands-gen [spec {:keys [threads max-length]}]
+(defn commands-gen [spec {:keys [threads max-length shrink-strategies]}]
   (let [init-state-fn (or (:initial-state spec)
                           (constantly nil))
         init-state (if (:setup spec)
@@ -148,7 +136,7 @@
                         #{})]
     (->> (parallel-command-sequence-gen spec init-state {:max-length max-length
                                                          :threads (or threads default-threads)})
-         (gen/gen-fmap shrink-parallel-command-sequence)
+         (gen/gen-fmap (partial shrink-parallel-command-sequence shrink-strategies))
          (gen/such-that (fn [cmds]
                           ;; we need to generate lists of commands
                           ;; that are valid no matter how they're

@@ -136,10 +136,14 @@
   The `options` map consists of three potential keys: `:gen`, `:run`,
   and `:report`, each of which influence a different part of the test.
 
-  `:gen` has three sub-keys:
+  `:gen` has four sub-keys:
    - `:threads` specifies how many parallel threads to execute
    - `:max-length` specifies a max length for command sequences
    - `:max-size` specifies a maximum size for generated values
+   - `:shrink-strategies` specifies a sequence of shrink strategies
+     that should be tried (in order) to reduce the size of a failing
+     test (see `stateful-check.generator/default-shrink-strategies`
+     and `stateful-check.shrink-strategies`)
 
   `:run` has three sub-keys:
    - `:max-tries` specifies how attempts to make to fail a test
@@ -170,7 +174,8 @@
              `([~'specification]
                [~'specification {:gen {:threads ~g/default-threads
                                        :max-length ~g/default-max-length
-                                       :max-size ~g/default-max-size}
+                                       :max-size ~g/default-max-size
+                                       :shrink-strategies g/default-shrink-strategies}
                                  :run {:max-tries ~default-max-tries
                                        :num-tests ~default-num-tests
                                        :seed (System/currentTimeMillis)
