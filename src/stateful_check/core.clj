@@ -2,7 +2,6 @@
   (:require [clojure.test :as t]
             [clojure.test.check :refer [quick-check]]
             [clojure.test.check.properties :refer [for-all]]
-            [clojure.test.check.generators :as gen]
             [stateful-check.generator :as g]
             [stateful-check.runner :as r])
   (:import [stateful_check.runner CaughtException]))
@@ -179,9 +178,7 @@
                                  :report {:first-case? false
                                           :stacktrace? false}}]))
 
-(defn report-result [msg spec options results]
-  ;; ~result-sym (:result results#)
-  ;; ~smallest-sym (:result (:shrunk results#))
+(defn report-result [msg _ options results]
   (let [result (:result results)
         smallest (get-in results [:shrunk :result])]
     (if (true? result)

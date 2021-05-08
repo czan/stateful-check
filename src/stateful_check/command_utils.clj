@@ -1,7 +1,5 @@
 (ns stateful-check.command-utils
-  (:require [stateful-check.symbolic-values :refer [valid?]]
-            [clojure.test.check.generators :as gen]
-            [clojure.walk :as walk]))
+  (:require [clojure.test.check.generators :as gen]))
 
 (defn to-generator
   "Convert a value into a generator, recursively. This means:
@@ -21,7 +19,7 @@
   "Generate the arguments for a command, taking into account whether
   or not the command declares a :args function."
   [command state]
-  (to-generator (if-let [args (:args command)]
+  (to-generator (when-let [args (:args command)]
                   (args state))))
 
 (defn check-requires

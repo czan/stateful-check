@@ -71,22 +71,20 @@
                                   [max-length max-length])
         seq-length (or seq-length default-max-length)
         par-length (or par-length default-max-length)]
-    (gen/sized
-     (fn [size]
-       (letfn [(parallel-commands-gen [n state]
-                 (if (zero? n)
-                   (gen/gen-pure [])
-                   (gen/gen-bind (command-sequence-tree-gen spec state (make-vars par-length (dec n)))
-                                 (fn [[tree state]]
-                                   (gen/gen-bind (parallel-commands-gen (dec n) state)
-                                                 (fn [other-trees]
-                                                   (gen/gen-pure (conj other-trees (vec tree)))))))))]
-         (gen/gen-bind (command-sequence-tree-gen spec state (make-vars seq-length nil))
-                       (fn [[sequential-trees state]]
-                         (gen/gen-bind (parallel-commands-gen threads state)
-                                       (fn [parallel-trees]
-                                         (gen/gen-pure {:sequential (vec sequential-trees)
-                                                        :parallel parallel-trees}))))))))))
+    (letfn [(parallel-commands-gen [n state]
+              (if (zero? n)
+                (gen/gen-pure [])
+                (gen/gen-bind (command-sequence-tree-gen spec state (make-vars par-length (dec n)))
+                              (fn [[tree state]]
+                                (gen/gen-bind (parallel-commands-gen (dec n) state)
+                                              (fn [other-trees]
+                                                (gen/gen-pure (conj other-trees (vec tree)))))))))]
+      (gen/gen-bind (command-sequence-tree-gen spec state (make-vars seq-length nil))
+                    (fn [[sequential-trees state]]
+                      (gen/gen-bind (parallel-commands-gen threads state)
+                                    (fn [parallel-trees]
+                                      (gen/gen-pure {:sequential (vec sequential-trees)
+                                                     :parallel parallel-trees}))))))))
 
 (defn- shrink-parallel-command-sequence
   ([{:keys [sequential parallel]}] (shrink-parallel-command-sequence sequential parallel))
