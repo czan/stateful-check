@@ -6,11 +6,8 @@
   (if (empty? args)
     (fn [result bindings] result)
     (let [value (first args)
-          value-f (if (satisfies? sv/SymbolicValue value)
-                    (fn [bindings]
-                      (sv/get-real-value value bindings))
-                    (fn [bindings]
-                      value))
+          value-f (fn [bindings]
+                    (sv/get-real-value value bindings))
           replacer-rest (args-replacer (rest args))]
       (fn [result bindings]
         (-> result

@@ -121,11 +121,7 @@
 (defn- valid-commands? [cmd-objs state bindings]
   (boolean (reduce (fn [[state bindings] [handle cmd-obj & args]]
                      (if (and (u/check-requires cmd-obj state)
-                              (every? (fn [arg]
-                                        (if (satisfies? sv/SymbolicValue arg)
-                                          (sv/valid? arg bindings)
-                                          true))
-                                      args)
+                              (every? #(sv/valid? % bindings) args)
                               (u/check-precondition cmd-obj state args))
                        [(u/make-next-state cmd-obj state args handle)
                         (conj bindings handle)]

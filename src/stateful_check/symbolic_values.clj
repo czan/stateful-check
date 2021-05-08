@@ -1,21 +1,48 @@
-(ns stateful-check.symbolic-values)
+(ns stateful-check.symbolic-values
+  (:require [clojure.walk :as walk]))
 
 (defprotocol SymbolicValue
-  (get-real-value [this real-values]
+  (get-real-value* [this real-values]
     "Lookup the value of this symbolic value in a real-values map")
-  (valid? [this results]
+  (valid?* [this results]
     "Detemine whether this symbolic value can be legally looked up in the results map"))
+
+(defn get-real-value [argument real-values]
+  ;; This is a prewalk, in case substituting a symbolic value leads to
+  ;; more opportunities to substitute symbolic values.
+  (walk/prewalk (fn [value]
+                  (if (satisfies? SymbolicValue value)
+                    (get-real-value* value real-values)
+                    value))
+                argument))
+
+(defonce invalid-exception (Exception.))
+
+(defn valid? [argument results]
+  (try
+    ;; This is a postwalk, so returning nil from the walk function
+    ;; doesn't prune the tree.
+    (walk/postwalk (fn [value]
+                    (when (and (satisfies? SymbolicValue value)
+                               (not (valid?* value results)))
+                      (throw invalid-exception)))
+                  argument)
+    true
+    (catch Exception e
+      (if (identical? e invalid-exception)
+        false
+        (throw e)))))
 
 
 
 (deftype LookupVar [root-var key not-found]
   SymbolicValue
-  (get-real-value [this real-values]
-    (get (get-real-value root-var real-values)
+  (get-real-value* [this real-values]
+    (get (get-real-value* root-var real-values)
          key
          not-found))
-  (valid? [this results]
-    (valid? root-var results))
+  (valid?* [this results]
+    (valid?* root-var results))
 
   Object
   (equals [this other]
@@ -50,9 +77,9 @@
 
 (deftype RootVar [name]
   SymbolicValue
-  (get-real-value [this real-values]
+  (get-real-value* [this real-values]
     (get real-values this))
-  (valid? [this results]
+  (valid?* [this results]
     (contains? results this))
 
   Object

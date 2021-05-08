@@ -201,3 +201,41 @@
        (capturing-test-output
         (is (specification-correct? throwing-postcondition-spec)))
        "this is an unfortunate error")))
+
+
+
+
+
+
+
+
+
+(def cons-command
+  {:args (fn [state] [gen/int [(gen/return state)]])
+   :command (fn [num [tail]]
+              (cons num tail))
+   :next-state (fn [_ _ result] result)
+   :postcondition (fn [prev-state _ [num _] result]
+                    (and (= (first result) num)
+                         (= (next result) prev-state)))})
+
+(deftest wrapped-symbolic-values-get-resolved-correctly
+  (is (specification-correct? {:commands {:cons #'cons-command}})))
+
+
+(def make-tree-command
+  {:args (fn [trees]
+           (let [subtree-gen (gen/one-of
+                              `[~gen/int
+                                ~@(when trees
+                                    [(gen/elements trees)])])]
+             [subtree-gen
+              subtree-gen]))
+   :command vector
+   :next-state (fn [trees _ result]
+                 (conj (or trees #{}) result))
+   :postcondition (fn [_ _ _ result]
+                    (every? some? result))})
+
+(deftest nested-symbolic-values-get-resolved-correctly
+  (is (specification-correct? {:commands {:make-tree #'make-tree-command}})))

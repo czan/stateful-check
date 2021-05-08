@@ -2,6 +2,16 @@
 
 - Add equals/hashCode methods to LookupVars, to allow using the result of ~get~ on a symbolic value to be a key in a hash map
 
+- Resolve symbolic values within arguments, not just at the top level. This allows you to use arguments which are partially generated, and partially results from previous commands. For example:
+
+  #+begin_src clojure
+    (def create-user-command
+      {:args (fn [{:keys [user-ids]}]
+               [{:id (gen/elements user-ids), :name gen/string-ascii}])
+       :command #(update-user %)})
+  #+end_src
+
+
 * 0.4.2
 
 - Fix printing of exceptions within postconditions ([[https://github.com/czan/stateful-check/issues/12][#12]]).
