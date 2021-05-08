@@ -2,27 +2,13 @@
   (:require [stateful-check.command-utils :as u]
             [stateful-check.symbolic-values :as sv]))
 
-(defn- args-replacer [args]
-  (if (empty? args)
-    (fn [result bindings] result)
-    (let [value (first args)
-          value-f (fn [bindings]
-                    (sv/get-real-value value bindings))
-          replacer-rest (args-replacer (rest args))]
-      (fn [result bindings]
-        (-> result
-            (conj (value-f bindings))
-            (replacer-rest bindings))))))
-
 (defn make-sequential-runners [cmd-objs]
   (mapv (fn [[handle cmd-obj & args]]
-          (let [replacer (args-replacer args)
-                function (:command cmd-obj)]
-            (if function
-              [handle #(apply function (replacer [] %))]
-              (throw (AssertionError. (str "No :command function found for "
-                                           (:name cmd-obj)
-                                           " command"))))))
+          (if-let [function (:command cmd-obj)]
+            [handle #(apply function (sv/get-real-value args %))]
+            (throw (AssertionError. (str "No :command function found for "
+                                         (:name cmd-obj)
+                                         " command")))))
         cmd-objs))
 
 (defrecord CaughtException [exception])
@@ -90,8 +76,7 @@
   (boolean (reduce (fn [[state bindings] [[handle cmd-obj & args] result]]
                      (if (instance? CaughtException result)
                        (reduced false)
-                       (let [replacer (args-replacer args)
-                             replaced-args (replacer [] bindings)
+                       (let [replaced-args (sv/get-real-value args bindings)
                              next-state (u/make-next-state cmd-obj state replaced-args result)]
                          (if (u/check-postcondition cmd-obj state next-state replaced-args result)
                            [next-state
