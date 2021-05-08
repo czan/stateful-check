@@ -11,6 +11,7 @@
        :command #(update-user %)})
   #+end_src
 
+- Fix shrinking of parallel command sequences. Due to a bug, shrinking of parallel command sequences only explored removing a single command, rather than removing pairs of commands. This may have led to poorer shrinks for parallel test cases.
 
 * 0.4.2
 

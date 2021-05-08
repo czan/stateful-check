@@ -99,24 +99,24 @@
                         ;; remove/shrink a command from the sequential prefix
                         (shrink-parallel-command-sequence sequential parallel))
                       (for [[i thread] (map vector (range) parallel)
-                            shrunk-thread (rose/remove thread)]
+                            thread (rose/remove thread)]
                         ;; remove/shrink a command from a parallel thread
                         (shrink-parallel-command-sequence sequential
-                                                          (assoc parallel i shrunk-thread)))
+                                                          (assoc parallel i thread)))
                       (for [[i thread] (map vector (range) parallel)]
                         ;; pull one of the first parallel commands into the sequential prefix
                         (shrink-parallel-command-sequence (conj sequential (first thread))
                                                           (update parallel i (comp vec next))))
                       (for [sequential (rose/remove sequential)
                             sequential (rose/remove sequential)]
-                        ;; remove/shrink a command from the sequential prefix
+                        ;; remove/shrink two command from the sequential prefix
                         (shrink-parallel-command-sequence sequential parallel))
                       (for [[i thread] (map vector (range) parallel)
-                            shrunk-thread (rose/remove thread)
-                            shrunk-thread (rose/remove thread)]
+                            thread (rose/remove thread)
+                            thread (rose/remove thread)]
                         ;; remove/shrink two commands from a parallel thread
                         (shrink-parallel-command-sequence sequential
-                                                          (assoc parallel i shrunk-thread))))))))
+                                                          (assoc parallel i thread))))))))
 
 (defn- valid-commands? [cmd-objs state bindings]
   (boolean (reduce (fn [[state bindings] [handle cmd-obj & args]]
