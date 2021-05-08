@@ -1,4 +1,4 @@
-(ns stateful-check.exception
+(ns stateful-check.exception-test
   (:require [clojure.test :refer [deftest is]]
             [clojure.test.check.generators :as gen]
             [stateful-check.core :refer :all]))
