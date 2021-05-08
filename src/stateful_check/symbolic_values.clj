@@ -17,6 +17,18 @@
   (valid? [this results]
     (valid? root-var results))
 
+  Object
+  (equals [this other]
+    (and (instance? LookupVar other)
+         (= (.-root-var this)
+            (.-root-var ^LookupVar other))
+         (= (.-key this)
+            (.-key ^LookupVar other))
+         (= (.-not-found this)
+            (.-not-found ^LookupVar other))))
+  (hashCode [this]
+    (java.util.Objects/hash (into-array Object [root-var key not-found])))
+
   clojure.lang.ILookup
   (valAt [this key]
     (LookupVar. this key nil))

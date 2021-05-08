@@ -1,3 +1,7 @@
+* 0.4.3
+
+- Add equals/hashCode methods to LookupVars, to allow using the result of ~get~ on a symbolic value to be a key in a hash map
+
 * 0.4.2
 
 - Fix printing of exceptions within postconditions ([[https://github.com/czan/stateful-check/issues/12][#12]]).
