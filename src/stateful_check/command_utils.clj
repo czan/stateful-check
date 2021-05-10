@@ -1,5 +1,8 @@
 (ns stateful-check.command-utils
-  (:require [clojure.test.check.generators :as gen]))
+  (:require [clojure.string :as str]
+            [clojure.pprint :as pp]
+            [clojure.test :refer [report]]
+            [clojure.test.check.generators :as gen]))
 
 (defn to-generator
   "Convert a value into a generator, recursively. This means:
@@ -49,8 +52,41 @@
 
 (defn check-postcondition
   "Check the postcondition for a command, taking into account whether
-  or not the command declares a :postcondition function."
+  or not the command declares a :postcondition function. Returns nil
+  if the postcondition passes, otherwise returns a failure message
+  with a description of the failure."
   [command prev-state next-state args result]
   (if-let [postcondition (:postcondition command)]
-    (postcondition prev-state next-state args result)
-    true))
+    (let [events (atom [])]
+      (binding [report (fn [event] (swap! events conj event))]
+        (let [postcondition-result (postcondition prev-state next-state args result)
+              all-events           @events
+              pass-events          (filter (comp #{:pass} :type) all-events)
+              failure-events       (filter (comp #{:fail :error} :type) all-events)]
+          (cond
+            ;; If we have explicit failure events, fail the
+            ;; postcondition.
+            (seq failure-events) (str/join "\n"
+                                           (mapcat (fn [{:keys [message expected actual]}]
+                                                     (concat
+                                                      (when message
+                                                        [message])
+                                                      [(->> (str/split (with-out-str (pp/pprint expected))
+                                                                       #"\n")
+                                                            (remove str/blank?)
+                                                            (str/join "\n          ")
+                                                            (str        "expected: "))
+                                                       (->> (str/split (with-out-str (pp/pprint actual))
+                                                                       #"\n")
+                                                            (remove str/blank?)
+                                                            (str/join "\n          ")
+                                                            (str        "  actual: "))]))
+                                                   failure-events))
+            ;; If we have explicit pass events, and no failure events,
+            ;; then pass the test.
+            (seq pass-events)    nil
+            ;; If we don't have pass or fail events, then just use the
+            ;; postcondition result by itself.
+            postcondition-result nil
+            :else                "Postcondition returned falsey."))))
+    nil))

@@ -84,10 +84,10 @@
 (def queues-in-use (atom 0))
 
 (def queue-specification
-  {:commands {:push #'push-queue-command
-              :peek #'peek-queue-command
-              :pop #'pop-queue-command
-              :count #'count-queue-command}
+  {:commands {:push push-queue-command
+              :peek peek-queue-command
+              :pop pop-queue-command
+              :count count-queue-command}
    :initial-state (fn [queue]
                     {:queue queue,
                      :elements []})
@@ -99,11 +99,11 @@
 
 (def failing-queue-specification
   (assoc-in queue-specification
-            [:commands :count] #'count-queue-constantly-zero-command))
+            [:commands :count] count-queue-constantly-zero-command))
 
 (def parallel-failing-queue-specification
   (assoc-in queue-specification
-            [:commands :push] #'push-queue-command-with-race-condition))
+            [:commands :push] push-queue-command-with-race-condition))
 
 (deftest correct-queue-test
   (let [val @queues-in-use]

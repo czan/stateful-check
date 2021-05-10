@@ -60,7 +60,13 @@ During trace verification the ~result~ provided to this function is the value th
 | Key              | Arguments                             | Default value       |
 | ~:postcondition~ | ~[prev-state next-state args result]~ | ~(constantly true)~ |
 
-The ~:postcondition~ function is how test assertions are performed. This function is provided with the state before (~prev-state~) and after (~next-state~) this command's ~:next-state~ function is called. If this function returns a falsey value then the command did not perform as expected on the SUT and the execution containing it is recorded as a failure.
+The ~:postcondition~ function is how test assertions are performed. This function is provided with the state before (~prev-state~) and after (~next-state~) this command's ~:next-state~ function is called. There are two ways for a postcondition to signal success/failure:
+
+ - they can use ~clojure.test/is~, where a failed assertion means the command did not perform as expected on the SUT; or
+
+ - if there are no ~clojure.test/is~ assertions, then they can return a falsey value to indicate the command did not perform as expected on the SUT.
+
+If a failure is indicated on a given command, the execution containing it is recorded as a failure. If an assertion has failed, then the expected/actual values will be printed to aid in debugging.
 
 Everything provided to the ~:postcondition~ function is a "real" value. All symbolic values will be replaced before the ~:postcondition~ function is called.
 

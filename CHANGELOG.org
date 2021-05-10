@@ -15,6 +15,52 @@
 
 - Add the ability to customise the shrink strategy for a run. The default shrink strategy is the same as before, but you can use the ~:gen~ ~:shrink-strategies~ option to tune shrinking for your use case. See ~stateful-check.shrink-strategies~ for the currently available strategies, or you can write your own (although this is undocumented).
 
+- Add the ability to use ~is~ in postconditions to get more specific feedback about failures. The expected/actual values from failing assertions will be captured and printed alongside the command trace, to aid in debugging failures. For example:
+
+  #+begin_src clojure
+    (def get-command
+      {:requires (fn [state] (seq state))
+       :args (fn [state] [(gen/elements test-keys)])
+       :command #(.get system-under-test %1)
+       :postcondition (fn [prev-state _ [k] val]
+                        (is (= (get prev-state k) val) (str "Looking up " (pr-str k) " matches the model")))})
+  #+end_src
+
+  This command from [[file:test/stateful_check/postcondition_is_test.clj][the associated test file]] will give a trace that looks like this:
+
+  #+begin_example
+    FAIL in (postcondition-prints-in-parallel-case) (core.clj:211)
+    Sequential prefix:
+
+    Thread a:
+      #<2a> = (:put "" 0)  = nil
+
+    Thread b:
+      #<1b> = (:put "a" 0)  = nil
+      #<4b> = (:get "a")  = nil
+        Looking up "a" matches the model
+        expected: (= (get prev-state k) val)
+          actual: (not (= 0 nil))
+
+    Seed: 1620654751933
+      Note: Test cases with multiple threads are not deterministic, so using the
+            same seed does not guarantee the same result.
+
+    expected: all executions to match specification
+      actual: the above execution did not match the specification
+  #+end_example
+
+  If the postcondition makes any assertions then the return value is not used. This means that the following postcondition will always pass.
+
+  #+begin_src clojure
+    {:postcondition
+     (fn [_ _ _ _]
+       (is true)
+       false)}
+  #+end_src
+
+  When performing tests with multiple threads, postcondition failures are a bit tricky to interpret. The postcondition may result from any one (or more) of the interleavings of the commands in the parallel threads.
+
 * 0.4.2
 
 - Fix printing of exceptions within postconditions ([[https://github.com/czan/stateful-check/issues/12][#12]]).

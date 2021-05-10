@@ -72,14 +72,18 @@
                        :parallel (mapv #(mapv (constantly ::unevaluated) %) parallel)
                        :parallel-strings (mapv #(mapv (constantly "???") %) parallel)})))))
 
-(defn valid-execution? [cmds-and-traces state bindings]
-  (boolean (reduce (fn [[state bindings] [[handle cmd-obj & args] result]]
-                     (if (instance? CaughtException result)
-                       (reduced false)
-                       (let [replaced-args (sv/get-real-value args bindings)
-                             next-state (u/make-next-state cmd-obj state replaced-args result)]
-                         (if (u/check-postcondition cmd-obj state next-state replaced-args result)
-                           [next-state
-                            (assoc bindings handle result)]
-                           (reduced false)))))
-                   [state bindings] cmds-and-traces)))
+(defn failure-message
+  "Return a vector of [handle message] representing which command
+  failed, and why. Returns nil if no command has failed."
+  [cmds-and-traces state bindings]
+  (first (reduce (fn [[_ state bindings] [[handle cmd-obj & args] result]]
+                   (if (instance? CaughtException result)
+                     (reduced [[handle "Unexpected exception thrown."]])
+                     (let [replaced-args (sv/get-real-value args bindings)
+                           next-state (u/make-next-state cmd-obj state replaced-args result)]
+                       (if-let [message (u/check-postcondition cmd-obj state next-state replaced-args result)]
+                         (reduced [[handle message]])
+                         [nil
+                          next-state
+                          (assoc bindings handle result)]))))
+                 [nil state bindings] cmds-and-traces)))

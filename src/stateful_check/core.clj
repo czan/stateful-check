@@ -10,10 +10,11 @@
 (def default-max-tries 1)
 (def default-timeout-ms 0)
 
-(defn- make-failure-exception [sequential-trace parallel-trace]
+(defn- make-failure-exception [sequential-trace parallel-trace messages]
   (ex-info "Generative test failed."
            {:sequential sequential-trace
-            :parallel parallel-trace}))
+            :parallel parallel-trace
+            :messages messages}))
 
 (defn failure-exception? [ex]
   (and (instance? clojure.lang.ExceptionInfo ex)
@@ -23,7 +24,11 @@
 (defn failure-exception-data [ex]
   (ex-data ex))
 
-(defn- some-valid-interleaving [spec commands results bindings]
+(defn- failure-messages
+  "Return a map mapping from a command handle to a set of messages
+  indicating failures that occurred during all the interleavings of a
+  command set."
+  [spec commands results bindings]
   (let [interleavings (g/every-interleaving (mapv vector
                                                   (:sequential commands)
                                                   (:sequential results))
@@ -32,10 +37,15 @@
                                                   (:parallel results)))
         init-state-fn (or (:initial-state spec)
                           (constantly nil))
-        init-state (if (:setup spec)
-                     (init-state-fn (get bindings g/setup-var))
-                     (init-state-fn))]
-    (some #(r/valid-execution? % init-state bindings) interleavings)))
+        init-state    (if (:setup spec)
+                        (init-state-fn (get bindings g/setup-var))
+                        (init-state-fn))
+        messages      (map #(r/failure-message % init-state bindings) interleavings)]
+    (when (every? some? messages) ;; if all paths failed
+      (->> messages
+           (map (fn [[handle message]]
+                    {handle #{message}}))
+           (apply merge-with into)))))
 
 (defn combine-cmds-with-traces [command result result-str]
   (let [last-str (pr-str result)]
@@ -62,7 +72,7 @@
                               {g/setup-var setup-result}
                               {})
                    results (r/runners->results runners bindings (get-in options [:run :timeout-ms] default-timeout-ms))]
-               (when-not (some-valid-interleaving spec commands results bindings)
+               (when-let [messages (failure-messages spec commands results bindings)]
                  (throw (make-failure-exception (mapv combine-cmds-with-traces
                                                       (:sequential commands)
                                                       (:sequential results)
@@ -70,7 +80,8 @@
                                                 (mapv (partial mapv combine-cmds-with-traces)
                                                       (:parallel commands)
                                                       (:parallel results)
-                                                      (:parallel-strings results))))))
+                                                      (:parallel-strings results))
+                                                messages))))
              (catch clojure.lang.ExceptionInfo ex
                (if (= (.getMessage ex) "Timed out")
                  (let [results (ex-data ex)]
@@ -81,7 +92,8 @@
                                                   (mapv (partial mapv combine-cmds-with-traces)
                                                         (:parallel commands)
                                                         (:parallel results)
-                                                        (:parallel-strings results)))))
+                                                        (:parallel-strings results))
+                                                  {nil "Test timed out."})))
                  (throw ex)))
              (finally
                (when-let [cleanup (:cleanup spec)]
@@ -90,7 +102,7 @@
                    (cleanup))))))))
      true)))
 
-(defn- print-sequence [commands stacktrace?]
+(defn- print-sequence [commands stacktrace? messages]
   (doseq [[[handle cmd & args] trace] commands]
     (printf "  %s = %s %s\n"
             (pr-str handle)
@@ -105,17 +117,22 @@
                          (.printStackTrace ^Throwable (:exception trace)
                                            (java.io.PrintWriter. *out*)))
                        (.toString ^Object (:exception trace)))
-                     trace))))))
+                     trace))))
+    (doseq [message (get messages handle)
+            line    (.split ^String message "\n")]
+      (printf "    %s\n" line))))
 
 (defn print-execution
-  ([{:keys [sequential parallel]} stacktrace?]
-   (print-execution sequential parallel stacktrace?))
-  ([sequential parallel stacktrace?]
+  ([{:keys [sequential parallel messages]} stacktrace?]
+   (print-execution sequential parallel stacktrace? messages))
+  ([sequential parallel stacktrace? messages]
    (printf "Sequential prefix:\n")
-   (print-sequence sequential stacktrace?)
+   (print-sequence sequential stacktrace? messages)
    (doseq [[i thread] (map vector (range) parallel)]
      (printf "\nThread %s:\n" (g/index->letter i))
-     (print-sequence thread stacktrace?))))
+     (print-sequence thread stacktrace? messages))
+   (doseq [message (get messages nil)]
+     (println message))))
 
 (defn run-specification
   "Run a specification. This will convert the spec into a property and
