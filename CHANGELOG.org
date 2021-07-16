@@ -61,6 +61,8 @@
 
   When performing tests with multiple threads, postcondition failures are a bit tricky to interpret. The postcondition may result from any one (or more) of the interleavings of the commands in the parallel threads.
 
+- Add ~:command-frequency?~ to the ~:report~ options, to print out a table of how often the test runner executed each command.
+
 * 0.4.2
 
 - Fix printing of exceptions within postconditions ([[https://github.com/czan/stateful-check/issues/12][#12]]).

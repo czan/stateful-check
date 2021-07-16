@@ -18,7 +18,7 @@
                                             (fn [state _ _ val] (is (= (first (:elements state)) val))))
                                   (assoc-in [:commands :pop :postcondition]
                                             (fn [state _ _ val] (is (= (first (:elements state)) val))))
-                                  (assoc-in [:commands :push :count]
+                                  (assoc-in [:commands :count :postcondition]
                                             (fn [state _ _ val] (is (= (count (:elements state)) val)))))
                               {:gen {:threads 2}
                                :run {:max-tries 10}})))

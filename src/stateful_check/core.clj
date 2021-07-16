@@ -1,5 +1,6 @@
 (ns stateful-check.core
-  (:require [clojure.test :as t]
+  (:require [clojure.pprint :refer [print-table]]
+            [clojure.test :as t]
             [clojure.test.check :refer [quick-check]]
             [clojure.test.check.properties :refer [for-all]]
             [stateful-check.generator :as g]
@@ -57,6 +58,8 @@
        :else (str result-str
                   "\n    >> object may have been mutated later into " last-str " <<\n"))]))
 
+(def ^:dynamic *run-commands* nil)
+
 (defn spec->property
   "Turn a specification into a testable property."
   ([spec] (spec->property spec nil))
@@ -64,6 +67,13 @@
    (for-all [commands (g/commands-gen spec (:gen options))]
      (let [runners (r/commands->runners commands)
            setup-fn (:setup spec)]
+       (when *run-commands*
+         (doseq [cmds (cons (:sequential commands)
+                            (:parallel commands))]
+           (->> cmds
+                (into {} (map (fn [[_ {:keys [name]} _]]
+                                [name 1])))
+                (swap! *run-commands* #(merge-with + %1 %2)))))
        (dotimes [try (get-in options [:run :max-tries] default-max-tries)]
          (let [setup-result (when-let [setup setup-fn]
                               (setup))]
@@ -174,6 +184,8 @@
   `:report` has two sub-keys, but only works within an `is`:
    - `:first-case?` specifies whether to print the first failure
    - `:stacktrace?` specifies whether to print exception stacktraces
+   - `:command-frequency?` specifies whether to print information
+     about how often each command was run
 
   The `:timeout-ms` option is unsafe in general, but may be helpful in
   some circumstances. It allows you to categorise a test as a failure
@@ -198,11 +210,19 @@
                                        :seed (System/currentTimeMillis)
                                        :timeout-ms ~default-timeout-ms}
                                  :report {:first-case? false
-                                          :stacktrace? false}}]))
+                                          :stacktrace? false
+                                          :command-frequency? false}}]))
 
-(defn report-result [msg _ options results]
+(defn report-result [msg _ options results frequencies]
   (let [result (:result results)
         smallest (get-in results [:shrunk :result])]
+    (when (get-in options [:report :command-frequency?] false)
+      (print "Command execution counts:")
+      (print-table (->> frequencies
+                        (sort-by val)
+                        reverse ;; big numbers on top
+                        (map #(hash-map :command (key %)
+                                        :count (val %))))))
     (if (true? result)
       (t/do-report {:type :pass,
                     :message msg,
@@ -242,5 +262,7 @@
   [msg [_ specification options]]
   `(let [spec# ~specification
          options# ~options
-         results# (run-specification spec# options#)]
-     (report-result ~msg spec# options# results#)))
+         [results# frequencies#] (binding [*run-commands* (atom {})]
+                                   [(run-specification spec# options#)
+                                    @*run-commands*])]
+     (report-result ~msg spec# options# results# frequencies#)))
