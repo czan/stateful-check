@@ -191,7 +191,7 @@
   `(let [message# (volatile! nil)]
      (with-redefs [clojure.test/do-report
                    (fn [details#]
-                     (assert (= (:type details#) :fail))
+                     (assert (= (:type details#) :error))
                      (vreset! message# (:message details#)))]
        ~@body
        @message#)))
