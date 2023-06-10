@@ -2,7 +2,8 @@
   (:require [clojure.pprint :refer [print-table]]
             [clojure.test :as t]
             [clojure.test.check :refer [quick-check]]
-            [clojure.test.check.properties :refer [for-all]]
+            [clojure.test.check.properties :refer [for-all] :as p]
+            [clojure.test.check.results :refer [Result pass? result-data]]
             [stateful-check.generator :as g]
             [stateful-check.runner :as r])
   (:import [stateful_check.runner CaughtException]))
@@ -11,19 +12,10 @@
 (def default-max-tries 1)
 (def default-timeout-ms 0)
 
-(defn- make-failure-exception [sequential-trace parallel-trace messages]
-  (ex-info "Generative test failed."
-           {:sequential sequential-trace
-            :parallel parallel-trace
-            :messages messages}))
-
-(defn failure-exception? [ex]
-  (and (instance? clojure.lang.ExceptionInfo ex)
-       (= (.getMessage ^clojure.lang.ExceptionInfo ex)
-          "Generative test failed.")))
-
-(defn failure-exception-data [ex]
-  (ex-data ex))
+(defrecord TestResult [pass? result-data]
+  Result
+  (pass? [this] pass?)
+  (result-data [this] result-data))
 
 (defn- failure-messages
   "Return a map mapping from a command handle to a set of messages
@@ -60,57 +52,77 @@
 
 (def ^:dynamic *run-commands* nil)
 
+(defn build-test-runner [specification commands timeout-ms]
+  "Return a function to execute each of `commands` and report a `TestResult`."
+  (let [runners (r/commands->runners commands)]
+    (fn []
+      (let [setup-result (when-let [setup (:setup specification)]
+                           (setup))]
+        (try
+          (let [bindings (if (:setup specification)
+                           {g/setup-var setup-result}
+                           {})
+                results (r/runners->results runners bindings timeout-ms)]
+            (if-let [messages (failure-messages specification commands results bindings)]
+              (->TestResult false
+                            {:message "Test failed."
+                             :messages messages
+                             :sequential (mapv combine-cmds-with-traces
+                                               (:sequential commands)
+                                               (:sequential results)
+                                               (:sequential-strings results))
+                             :parallel (mapv (partial mapv combine-cmds-with-traces)
+                                             (:parallel commands)
+                                             (:parallel results)
+                                             (:parallel-strings results))})
+              (->TestResult true {})))
+          (catch clojure.lang.ExceptionInfo ex
+            (->TestResult
+             false
+             (if (= (.getMessage ex) "Timed out")
+               (let [results (ex-data ex)]
+                 {:message "Test timed out."
+                  :messages {nil (format "Test timed out after %sms" timeout-ms)}
+                  :sequential (mapv combine-cmds-with-traces
+                                    (:sequential commands)
+                                    (:sequential results)
+                                    (:sequential-strings results))
+                  :parallel (mapv (partial mapv combine-cmds-with-traces)
+                                  (:parallel commands)
+                                  (:parallel results)
+                                  (:parallel-strings results))})
+               ;; Any other type of exception is re-thrown, because it's
+               ;; unexpected. The command runners catch exceptions where they
+               ;; are expected, so any other exceptions represent programmer
+               ;; error and should fail the test immediately.
+               (throw ex))))
+          (finally
+            (when-let [cleanup (:cleanup specification)]
+              (if (:setup specification)
+                (cleanup setup-result)
+                (cleanup)))))))))
+
 (defn spec->property
   "Turn a specification into a testable property."
   ([spec] (spec->property spec nil))
   ([spec options]
    (for-all [commands (g/commands-gen spec (:gen options))]
-     (let [runners (r/commands->runners commands)
-           setup-fn (:setup spec)]
-       (when *run-commands*
-         (doseq [cmds (cons (:sequential commands)
-                            (:parallel commands))]
-           (->> cmds
-                (into {} (map (fn [[_ {:keys [name]} _]]
-                                [name 1])))
-                (swap! *run-commands* #(merge-with + %1 %2)))))
-       (dotimes [try (get-in options [:run :max-tries] default-max-tries)]
-         (let [setup-result (when-let [setup setup-fn]
-                              (setup))]
-           (try
-             (let [bindings (if setup-fn
-                              {g/setup-var setup-result}
-                              {})
-                   results (r/runners->results runners bindings (get-in options [:run :timeout-ms] default-timeout-ms))]
-               (when-let [messages (failure-messages spec commands results bindings)]
-                 (throw (make-failure-exception (mapv combine-cmds-with-traces
-                                                      (:sequential commands)
-                                                      (:sequential results)
-                                                      (:sequential-strings results))
-                                                (mapv (partial mapv combine-cmds-with-traces)
-                                                      (:parallel commands)
-                                                      (:parallel results)
-                                                      (:parallel-strings results))
-                                                messages))))
-             (catch clojure.lang.ExceptionInfo ex
-               (if (= (.getMessage ex) "Timed out")
-                 (let [results (ex-data ex)]
-                   (throw (make-failure-exception (mapv combine-cmds-with-traces
-                                                        (:sequential commands)
-                                                        (:sequential results)
-                                                        (:sequential-strings results))
-                                                  (mapv (partial mapv combine-cmds-with-traces)
-                                                        (:parallel commands)
-                                                        (:parallel results)
-                                                        (:parallel-strings results))
-                                                  {nil "Test timed out."})))
-                 (throw ex)))
-             (finally
-               (when-let [cleanup (:cleanup spec)]
-                 (if setup-fn
-                   (cleanup setup-result)
-                   (cleanup))))))))
-     true)))
+     (when *run-commands*
+       (doseq [cmds (cons (:sequential commands)
+                          (:parallel commands))]
+         (->> cmds
+              (into {} (map (fn [[_ {:keys [name]} _]]
+                              [name 1])))
+              (swap! *run-commands* #(merge-with + %1 %2)))))
+     (let [run-test (build-test-runner spec commands (get-in options [:run :timeout-ms] default-timeout-ms))]
+       (loop [tries-left (get-in options [:run :max-tries] default-max-tries)]
+         (if (zero? tries-left)
+           (->TestResult true {:commands commands, :options options, :specification spec})
+           (let [try-result (run-test)]
+             (if (pass? try-result)
+               (recur (dec tries-left))
+               (update try-result :result-data
+                       merge {:commands commands, :options options, :specification spec})))))))))
 
 (defn- print-sequence [commands stacktrace? messages]
   (doseq [[[handle cmd & args] trace] commands]
@@ -132,17 +144,14 @@
             line    (.split ^String message "\n")]
       (printf "    %s\n" line))))
 
-(defn print-execution
-  ([{:keys [sequential parallel messages]} stacktrace?]
-   (print-execution sequential parallel stacktrace? messages))
-  ([sequential parallel stacktrace? messages]
-   (printf "Sequential prefix:\n")
-   (print-sequence sequential stacktrace? messages)
-   (doseq [[i thread] (map vector (range) parallel)]
-     (printf "\nThread %s:\n" (g/index->letter i))
-     (print-sequence thread stacktrace? messages))
-   (doseq [message (get messages nil)]
-     (println message))))
+(defn print-execution [{:keys [message sequential parallel messages]} stacktrace?]
+  (printf "Sequential prefix:\n")
+  (print-sequence sequential stacktrace? messages)
+  (doseq [[i thread] (map vector (range) parallel)]
+    (printf "\nThread %s:\n" (g/index->letter i))
+    (print-sequence thread stacktrace? messages))
+  (doseq [message (get messages nil)]
+    (println message)))
 
 (defn run-specification
   "Run a specification. This will convert the spec into a property and
@@ -196,7 +205,7 @@
   impacting other tests."
   ([specification] (specification-correct? specification nil))
   ([specification options]
-   (true? (:result (run-specification specification options)))))
+   (:pass? (run-specification specification options))))
 ;; We need this to be a separate form, for some reason. The attr-map
 ;; in defn doesn't work if you use the multi-arity form.
 (alter-meta! #'specification-correct? assoc :arglists
@@ -214,8 +223,8 @@
                                           :command-frequency? false}}]))
 
 (defn report-result [msg _ options results frequencies]
-  (let [result (:result results)
-        smallest (get-in results [:shrunk :result])]
+  (let [result-data (:result-data results)
+        smallest-result-data (get-in results [:shrunk :result-data])]
     (when (get-in options [:report :command-frequency?] false)
       (print "Command execution counts:")
       (print-table (->> frequencies
@@ -223,11 +232,21 @@
                         reverse ;; big numbers on top
                         (map #(hash-map :command (key %)
                                         :count (val %))))))
-    (if (true? result)
+    (cond
+      (::p/error result-data)
+      (t/do-report {:type :error,
+                    :fault :true
+                    :message msg
+                    :expected nil,
+                    :actual (::p/error result-data)})
+
+      (:pass? results)
       (t/do-report {:type :pass,
                     :message msg,
                     :expected true,
                     :actual true})
+
+      :else
       (t/do-report {:type :fail,
                     :message (with-out-str
                                (binding [*out* (java.io.PrintWriter. *out*)]
@@ -236,19 +255,16 @@
                                  (when (get-in options [:report :first-case?] false)
                                    (println "  First failing test case")
                                    (println "  -----------------------------")
-                                   (if (failure-exception? result)
-                                     (print-execution (failure-exception-data result)
-                                                      (get-in options [:report :stacktrace?] false))
-                                     (.printStackTrace ^Throwable result
-                                                       ^java.io.PrintWriter *out*))
+                                   (print-execution result-data
+                                                    (get-in options [:report :stacktrace?] false))
                                    (println)
                                    (println "  Smallest case after shrinking")
                                    (println "  -----------------------------"))
-                                 (if (failure-exception? smallest)
-                                   (print-execution (failure-exception-data smallest)
-                                                    (get-in options [:report :stacktrace?] false))
-                                   (.printStackTrace ^Throwable smallest
-                                                     ^java.io.PrintWriter *out*))
+                                 (if (::p/error smallest-result-data)
+                                   (.printStackTrace ^Throwable (::p/error smallest-result-data)
+                                                     ^java.io.PrintWriter *out*)
+                                   (print-execution smallest-result-data
+                                                    (get-in options [:report :stacktrace?] false)))
                                  (println)
                                  (println "Seed:" (:seed results))
                                  (when (> (get-in options [:gen :threads] 0) 1)
@@ -256,7 +272,7 @@
                                                  "        same seed does not guarantee the same result.")))))
                     :expected (symbol "all executions to match specification"),
                     :actual (symbol "the above execution did not match the specification")}))
-    (true? result)))
+    (:pass? results)))
 
 (defmethod t/assert-expr 'specification-correct?
   [msg [_ specification options]]
