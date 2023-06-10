@@ -13,7 +13,7 @@
 (def observe-command
   {:command #(do system-under-test)
    :postcondition (fn [expect _ _ result]
-                    (= expect @result))})
+                    (is (= expect @result)))})
 
 (def mutation-spec
   {:commands {:add #'add-command
@@ -28,3 +28,30 @@
   ;; something indicating that the object was mutated later in the
   ;; test, and showing the most recent value for it.
   (is (specification-correct? mutation-spec)))
+
+(deftest ^:interactive does-not-catch-mutation
+  ;; The test should also fail, but its output should not mention the
+  ;; mutation, and the result should be printed using the final value.
+  (is (specification-correct? mutation-spec {:run {:detect-mutation? false}})))
+
+
+(def test-atom (atom 0))
+(deftest detecting-mutation
+  (is (specification-correct?
+       {:commands {:inc {:command #(do (swap! test-atom inc)
+                                       test-atom)
+                         :next-state (fn [s _ _] (inc s))
+                         :postcondition (fn [_ ns _ result]
+                                          (is (= ns @result)))}}
+        :setup #(reset! test-atom 0)
+        :initial-state (constantly 0)})))
+(deftest ignoring-mutation
+  (is (specification-correct?
+       {:commands {:inc {:command #(do (swap! test-atom inc)
+                                       test-atom)
+                         :next-state (fn [s _ _] (inc s))
+                         :postcondition (fn [_ ns _ result]
+                                          (is (= ns @result)))}}
+        :setup #(reset! test-atom 0)
+        :initial-state (constantly 0)}
+       {:run {:assume-immutable-results true}})))

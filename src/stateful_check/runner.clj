@@ -13,19 +13,24 @@
 
 (defrecord CaughtException [exception])
 
-(defn run-sequential-runners [runners bindings]
+(defn run-sequential-runners [runners bindings assume-immutable-results]
   (reduce (fn [[bindings trace str-trace] [handle f]]
             (try
               (let [value (f bindings)]
                 [(assoc bindings handle value)
                  (conj trace value)
-                 (conj str-trace (pr-str value))])
+                 (if assume-immutable-results
+                   (conj str-trace nil)
+                   (conj str-trace (pr-str value)))])
               (catch Exception exception
                 (reduced [bindings
                           (conj trace (->CaughtException exception))
-                          (conj str-trace exception)
+                          (if assume-immutable-results
+                            (conj str-trace nil)
+                            (conj str-trace exception))
                           exception]))))
-          [bindings [] []] runners))
+          [bindings [] []]
+          runners))
 
 (defn commands->runners [{:keys [sequential parallel]}]
   {:sequential (make-sequential-runners sequential)
@@ -42,10 +47,10 @@
                (throw (InterruptedException. "Timed out")))
            v#)))))
 
-(defn runners->results [{:keys [sequential parallel]} bindings timeout-ms]
+(defn runners->results [{:keys [sequential parallel]} bindings timeout-ms assume-immutable-results]
   (try
     (with-timeout timeout-ms
-      (let [[bindings trace str-trace exception] (run-sequential-runners sequential bindings)
+      (let [[bindings trace str-trace exception] (run-sequential-runners sequential bindings assume-immutable-results)
             latch (java.util.concurrent.atomic.AtomicBoolean. true)
             futures (when-not exception
                       (mapv #(future
@@ -54,7 +59,7 @@
                                  ;; created (this is probably unnecessary,
                                  ;; but just in case)
                                  )
-                               (run-sequential-runners % bindings))
+                               (run-sequential-runners % bindings assume-immutable-results))
                             parallel))]
         (try
           (.set latch false)

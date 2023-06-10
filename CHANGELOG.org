@@ -2,6 +2,47 @@
 
 - Return results using ~test.check~'s ~Result~ protocol, rather than custom exceptions. (Thanks to @r0man for doing the hard work here.)
 
+- Make mutation detection optional, through the ~:run~ ~:assume-immutable-results~ option. This delays converting command results into strings until the end of the test run, which may make it easier to provoke some race conditions.
+
+  To demonstrate the difference between in output, let's look at this test case:
+
+  #+begin_src clojure
+    (def test-atom (atom 0))
+    (deftest returning-atom-as-result
+      (is (specification-correct?
+           {:commands {:inc {:command #(do (swap! test-atom inc)
+                                           test-atom)
+                             :next-state (fn [s _ _] (inc s))
+                             :postcondition (fn [_ ns _ result]
+                                              (is (= ns @result)))}}
+            :setup #(reset! test-atom 0)
+            :initial-state (constantly 0)})))
+  #+end_src
+
+  With the default of ~:assume-immutable-results~ as ~false~ we see this output:
+
+  #+begin_example
+    Sequential prefix:
+      #<4> = (:inc)  = #atom[1 0x71f8eaa9]
+        >> object may have been mutated later into #atom[2 0x71f8eaa9] <<
+
+        expected: 1
+          actual: 2
+      #<5> = (:inc)  = #atom[2 0x71f8eaa9]
+  #+end_example
+
+  With ~:assume-immutable-results~ set to ~true~ we see this output:
+
+  #+begin_example
+    Sequential prefix:
+      #<4> = (:inc)  = #atom[2 0x71f8eaa9]
+        expected: 1
+          actual: 2
+      #<5> = (:inc)  = #atom[2 0x71f8eaa9]
+  #+end_example
+
+  If you compare the result of command ~#<4>~ in both cases you can see the difference in output. The assertions in both cases reflect the final value (i.e. ~actual~ is ~2~ in both cases) because postconditions run after the execution phase.
+
 * 0.4.3
 
 - Add equals/hashCode methods to LookupVars, to allow using the result of ~get~ on a symbolic value to be a key in a hash map

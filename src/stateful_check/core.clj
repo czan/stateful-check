@@ -11,6 +11,7 @@
 (def default-num-tests 200)
 (def default-max-tries 1)
 (def default-timeout-ms 0)
+(def default-assume-immutable-results false)
 
 (defrecord TestResult [pass? result-data]
   Result
@@ -41,18 +42,21 @@
            (apply merge-with into)))))
 
 (defn combine-cmds-with-traces [command result result-str]
-  (let [last-str (pr-str result)]
-    [command
-     (cond
-       (= ::r/unevaluated result) result
-       (instance? CaughtException result) result
-       (= last-str result-str) result-str
-       :else (str result-str
-                  "\n    >> object may have been mutated later into " last-str " <<\n"))]))
+  [command
+   (cond
+     (= ::r/unevaluated result) result
+     (instance? CaughtException result) result
+     :else (if (nil? result-str)
+             (pr-str result)
+             (let [last-str (pr-str result)]
+               (if (= result-str last-str)
+                 result-str
+                 (str result-str
+                      "\n    >> object may have been mutated later into " last-str " <<\n")))))])
 
 (def ^:dynamic *run-commands* nil)
 
-(defn build-test-runner [specification commands timeout-ms]
+(defn build-test-runner [specification commands timeout-ms assume-immutable-results]
   "Return a function to execute each of `commands` and report a `TestResult`."
   (let [runners (r/commands->runners commands)]
     (fn []
@@ -62,7 +66,7 @@
           (let [bindings (if (:setup specification)
                            {g/setup-var setup-result}
                            {})
-                results (r/runners->results runners bindings timeout-ms)]
+                results (r/runners->results runners bindings timeout-ms assume-immutable-results)]
             (if-let [messages (failure-messages specification commands results bindings)]
               (->TestResult false
                             {:message "Test failed."
@@ -114,7 +118,10 @@
               (into {} (map (fn [[_ {:keys [name]} _]]
                               [name 1])))
               (swap! *run-commands* #(merge-with + %1 %2)))))
-     (let [run-test (build-test-runner spec commands (get-in options [:run :timeout-ms] default-timeout-ms))]
+     (let [run-test (build-test-runner spec
+                                       commands
+                                       (get-in options [:run :timeout-ms] default-timeout-ms)
+                                       (get-in options [:run :assume-immutable-results] default-assume-immutable-results))]
        (loop [tries-left (get-in options [:run :max-tries] default-max-tries)]
          (if (zero? tries-left)
            (->TestResult true {:commands commands, :options options, :specification spec})
@@ -189,6 +196,10 @@
      test is permitted to run for - taking longer is considered a
      failure (default: 0, meaning no timeout; see NOTE below for more
      details)
+   - `:assume-immutable-results` specifies whether the runner should
+     assume that the results of running commands are immutable, and
+     thus delay string converstions until the end of the test run
+     (default: false)
 
   `:report` has two sub-keys, but only works within an `is`:
    - `:first-case?` specifies whether to print the first failure
