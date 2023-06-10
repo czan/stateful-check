@@ -1,5 +1,6 @@
 (ns stateful-check.core
-  (:require [clojure.pprint :refer [print-table]]
+  (:require [clojure.pprint :as pp]
+            [clojure.string :as str]
             [clojure.test :as t]
             [clojure.test.check :refer [quick-check]]
             [clojure.test.check.properties :refer [for-all] :as p]
@@ -18,8 +19,8 @@
   (pass? [this] pass?)
   (result-data [this] result-data))
 
-(defn- failure-messages
-  "Return a map mapping from a command handle to a set of messages
+(defn- failures
+  "Return a map mapping from a command handle to a set of failures
   indicating failures that occurred during all the interleavings of a
   command set."
   [spec commands results bindings]
@@ -34,11 +35,11 @@
         init-state    (if (:setup spec)
                         (init-state-fn (get bindings g/setup-var))
                         (init-state-fn))
-        messages      (map #(r/failure-message % init-state bindings) interleavings)]
-    (when (every? some? messages) ;; if all paths failed
-      (->> messages
-           (map (fn [[handle message]]
-                    {handle #{message}}))
+        failures      (map #(r/failure % init-state bindings) interleavings)]
+    (when (every? some? failures) ;; if all paths failed
+      (->> failures
+           (map (fn [[handle failure]]
+                    {handle #{failure}}))
            (apply merge-with into)))))
 
 (defn combine-cmds-with-traces [command result result-str]
@@ -67,10 +68,10 @@
                            {g/setup-var setup-result}
                            {})
                 results (r/runners->results runners bindings timeout-ms assume-immutable-results)]
-            (if-let [messages (failure-messages specification commands results bindings)]
+            (if-let [failures (failures specification commands results bindings)]
               (->TestResult false
                             {:message "Test failed."
-                             :messages messages
+                             :failures failures
                              :sequential (mapv combine-cmds-with-traces
                                                (:sequential commands)
                                                (:sequential results)
@@ -86,7 +87,7 @@
              (if (= (.getMessage ex) "Timed out")
                (let [results (ex-data ex)]
                  {:message "Test timed out."
-                  :messages {nil (format "Test timed out after %sms" timeout-ms)}
+                  :failures {nil {:message (format "Test timed out after %sms" timeout-ms)}}
                   :sequential (mapv combine-cmds-with-traces
                                     (:sequential commands)
                                     (:sequential results)
@@ -131,7 +132,21 @@
                (update try-result :result-data
                        merge {:commands commands, :options options, :specification spec})))))))))
 
-(defn- print-sequence [commands stacktrace? messages]
+(defn- print-failures [handle failures]
+  (doseq [{:keys [message events]} (get failures handle)]
+    (if (seq events)
+      (doseq [{:keys [message] :as event} events]
+        (when message
+          (println "     " message))
+        (doseq [detail [:expected :actual]]
+          (->> (str/split (with-out-str (pp/pprint (get event detail))) #"\n")
+               (remove str/blank?)
+               (str/join "\n             ")
+               (str (format "%12s: " (name detail)))
+               (println))))
+      (println "   " message))))
+
+(defn- print-sequence [commands stacktrace? failures]
   (doseq [[[handle cmd & args] trace] commands]
     (printf "  %s = %s %s\n"
             (pr-str handle)
@@ -147,18 +162,15 @@
                                            (java.io.PrintWriter. *out*)))
                        (.toString ^Object (:exception trace)))
                      trace))))
-    (doseq [message (get messages handle)
-            line    (.split ^String message "\n")]
-      (printf "    %s\n" line))))
+    (print-failures handle failures)))
 
-(defn print-execution [{:keys [message sequential parallel messages]} stacktrace?]
+(defn print-execution [{:keys [message sequential parallel failures]} stacktrace?]
   (printf "Sequential prefix:\n")
-  (print-sequence sequential stacktrace? messages)
+  (print-sequence sequential stacktrace? failures)
   (doseq [[i thread] (map vector (range) parallel)]
     (printf "\nThread %s:\n" (g/index->letter i))
-    (print-sequence thread stacktrace? messages))
-  (doseq [message (get messages nil)]
-    (println message)))
+    (print-sequence thread stacktrace? failures))
+  (print-failures nil failures))
 
 (defn run-specification
   "Run a specification. This will convert the spec into a property and
@@ -238,11 +250,11 @@
         smallest-result-data (get-in results [:shrunk :result-data])]
     (when (get-in options [:report :command-frequency?] false)
       (print "Command execution counts:")
-      (print-table (->> frequencies
-                        (sort-by val)
-                        reverse ;; big numbers on top
-                        (map #(hash-map :command (key %)
-                                        :count (val %))))))
+      (pp/print-table (->> frequencies
+                           (sort-by val)
+                           reverse ;; big numbers on top
+                           (map #(hash-map :command (key %)
+                                           :count (val %))))))
     (cond
       (::p/error result-data)
       (t/do-report {:type :error,
