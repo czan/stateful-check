@@ -77,17 +77,22 @@
                        :parallel (mapv #(mapv (constantly ::unevaluated) %) parallel)
                        :parallel-strings (mapv #(mapv (constantly "???") %) parallel)})))))
 
-(defn failure-message
-  "Return a vector of [handle message] representing which command
-  failed, and why. Returns nil if no command has failed."
+(defn failure
+  "Return a vector of [handle failure] representing which command
+  failed, and why. Returns nil if no command has failed.
+
+  The failure entry is a map with a :message key and an
+  optional :events key, which contains clojure.test report events of
+  type :error and :fail that were emitted during the evaluation of the
+  postcondition."
   [cmds-and-traces state bindings]
   (first (reduce (fn [[_ state bindings] [[handle cmd-obj & args] result]]
                    (if (instance? CaughtException result)
-                     (reduced [[handle "Unexpected exception thrown."]])
+                     (reduced [[handle {:message "Unexpected exception thrown."}]])
                      (let [replaced-args (sv/get-real-value args bindings)
                            next-state (u/make-next-state cmd-obj state replaced-args result)]
-                       (if-let [message (u/check-postcondition cmd-obj state next-state replaced-args result)]
-                         (reduced [[handle message]])
+                       (if-let [failure (u/check-postcondition cmd-obj state next-state replaced-args result)]
+                         (reduced [[handle failure]])
                          [nil
                           next-state
                           (assoc bindings handle result)]))))
