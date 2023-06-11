@@ -26,8 +26,8 @@
       #<4> = (:inc)  = #atom[1 0x71f8eaa9]
         >> object may have been mutated later into #atom[2 0x71f8eaa9] <<
 
-        expected: 1
-          actual: 2
+        expected: (= ns @result)
+          actual: (not (= 1 2))
       #<5> = (:inc)  = #atom[2 0x71f8eaa9]
   #+end_example
 
@@ -36,8 +36,8 @@
   #+begin_example
     Sequential prefix:
       #<4> = (:inc)  = #atom[2 0x71f8eaa9]
-        expected: 1
-          actual: 2
+        expected: (= ns @result)
+          actual: (not (= 1 2))
       #<5> = (:inc)  = #atom[2 0x71f8eaa9]
   #+end_example
 
