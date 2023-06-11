@@ -60,18 +60,17 @@
   (valAt [this key]
     (LookupVar. this key nil))
   (valAt [this key not-found]
-    (LookupVar. this key not-found)))
+    (LookupVar. this key not-found))
+
+  (toString [this]
+    (str "(get " root-var " " (pr-str key)
+         (when-not (nil? not-found)
+           (str " " (pr-str not-found)))
+         ")")))
 
 (defmethod print-method LookupVar
   [^LookupVar v, ^java.io.Writer writer]
-  (.write writer "(get ")
-  (print-method (.-root-var v) writer)
-  (.write writer " ")
-  (print-method (.-key v) writer)
-  (when-not (nil? (.-not-found v))
-    (.write writer " ")
-    (print-method (.-not-found v) writer))
-  (.write writer ")"))
+  (.write writer (.toString v)))
 
 
 
@@ -94,8 +93,11 @@
   (valAt [this key]
     (->LookupVar this key nil))
   (valAt [this key not-found]
-    (->LookupVar this key not-found)))
+    (->LookupVar this key not-found))
+
+  (toString [this]
+    (str "#<" (.-name this) ">")))
 
 (defmethod print-method RootVar
   [^RootVar v, ^java.io.Writer writer]
-  (.write writer (str "#<" (.-name v) ">")))
+  (.write writer (.toString v)))
