@@ -32,4 +32,4 @@
 (deftest ^:interactive does-not-catch-mutation
   ;; The test should also fail, but its output should not mention the
   ;; mutation, and the result should be printed using the final value.
-  (is (specification-correct? mutation-spec {:run {:assume-immutable-results false}})))
+  (is (specification-correct? mutation-spec {:run {:assume-immutable-results true}})))
