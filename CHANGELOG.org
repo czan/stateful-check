@@ -43,6 +43,8 @@
 
   If you compare the result of command ~#<4>~ in both cases you can see the difference in output. The assertions in both cases reflect the final value (i.e. ~actual~ is ~2~ in both cases) because postconditions run after the execution phase.
 
+- Make the ~:command-frequency?~ table include a ~0~ count for commands that were not run.
+
 * 0.4.3
 
 - Add equals/hashCode methods to LookupVars, to allow using the result of ~get~ on a symbolic value to be a key in a hash map
