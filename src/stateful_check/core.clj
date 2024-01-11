@@ -301,7 +301,8 @@
   [msg [_ specification options]]
   `(let [spec# ~specification
          options# ~options
-         [results# frequencies#] (binding [*run-commands* (atom {})]
+         run-commands# (->> spec# :commands keys (into {} (map #(vector % 0))))
+         [results# frequencies#] (binding [*run-commands* (atom run-commands#)]
                                    [(run-specification spec# options#)
                                     @*run-commands*])]
      (report-result ~msg spec# options# results# frequencies#)))

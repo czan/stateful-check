@@ -239,3 +239,12 @@
 
 (deftest nested-symbolic-values-get-resolved-correctly
   (is (specification-correct? {:commands {:make-tree #'make-tree-command}})))
+
+(deftest report-zero-frequencies-test
+  (let [output (with-out-str
+                 (is (specification-correct?
+                      (assoc-in small-set-spec [:commands :never]
+                                {:command #(assert false)
+                                 :requires (constantly false)})
+                      {:report {:command-frequency? true}})))]
+    (is (re-matches #"(?s).*|\s+:never\s+|\s+0\s+|.*" output))))
