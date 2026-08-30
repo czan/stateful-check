@@ -1,3 +1,9 @@
+* 0.5.0
+
+- *Breaking!* require that ~:generate-command~ only chooses commands that pass their ~:requires~ check.
+
+  Previously, the generation logic would apply a ~such-that~ to the result of ~:generate-command~ to get a valid command. This is a bit misleading, and is better applied within a defined ~:generate-command~. The default was already doing this filtering, so this just brings user-defined command generators in line with that.
+
 * 0.4.4
 
 - Return results using ~test.check~'s ~Result~ protocol, rather than custom exceptions. (Thanks to @r0man for doing the hard work here.)

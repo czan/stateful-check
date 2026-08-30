@@ -103,10 +103,10 @@ The values of the map may either be a command map (see above section on their st
 
 Specifications also have a number of optional functions:
 
-| Key                 | Arguments | Default value                                 |
-| ~:generate-command~ | ~[state]~ | ~(gen/elements (:keys system-specification))~ |
+| Key                 | Arguments | Default value                                                          |
+| ~:generate-command~ | ~[state]~ | Choose any command which passes its ~:requires~ condition with ~state~ |
 
-The ~:generate-command~ function is used to determine which command to add to the command list next. The generator returned by ~:generate-command~ is used to generate the name of the next command (which then goes through ordinary command generation).
+The ~:generate-command~ function is used to determine which command to add to the command list next. The generator returned by ~:generate-command~ is used to generate the name of the next command (which then goes through ordinary command generation). The command chosen by ~:generate-command~ must pass its ~:requires~ check.
 
 In general, if your commands are set up appropriately then you will not need to declare a ~:generate-command~ function. It can be helpful for changing the distribution of generated commands, or for increasing the efficiency of generation in some cases.
 

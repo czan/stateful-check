@@ -20,11 +20,13 @@
 (defn- command-obj-gen [spec state]
   (let [unwrap #(if (var? %) @% %)]
     (if-let [generate-command (:generate-command spec)]
-      (gen/such-that #(u/check-requires % state)
-                     (gen/fmap (fn [name]
-                                 (assoc (unwrap (get (:commands spec) name))
-                                        :name name))
-                               (generate-command state)))
+      (gen/fmap (fn [name]
+                  (let [command (assoc (unwrap (get (:commands spec) name))
+                                       :name name)]
+                    (assert (u/check-requires command state)
+                            (str "Generated command (" name ") must pass :requires check with state: " (prn-str state)))
+                    command))
+                (generate-command state))
       (let [valid-commands (->> (:commands spec)
                                 (map (fn [[name cmd-obj]]
                                        (assoc (unwrap cmd-obj)
